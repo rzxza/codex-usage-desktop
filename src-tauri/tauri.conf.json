@@ -48,7 +48,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDYzQzYxQUYwQzc1MkNGQjAKUldTd3oxTEg4QnJHWTU5UWJJWkN4YXlKRGVTc2w5TFQ2cWE4SWlFR3RGaW1uL1dZZTJWUXVSUnAK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEY2OTJCNURENUYyRTNBODUKUldTRk9pNWYzYldTOW1CRTZLWHdYT1pCOFBWR0kzYU13Mnc4ckxXNmhub1lOOGhwR0lrWWVGWDUK",
       "endpoints": [
         "https://github.com/rzxza/codex-usage-desktop/releases/latest/download/latest.json"
       ]
