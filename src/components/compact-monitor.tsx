@@ -52,7 +52,8 @@ export function CompactMonitor() {
   const [analytics, setAnalytics] = useState<ServerCreditAnalyticsResponse | null>(null);
   const [limitsUpdatedAt, setLimitsUpdatedAt] = useState<number | null>(null);
   const [analyticsUpdatedAt, setAnalyticsUpdatedAt] = useState<number | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [limitsError, setLimitsError] = useState<string | null>(null);
+  const [analyticsError, setAnalyticsError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
@@ -81,38 +82,43 @@ export function CompactMonitor() {
     };
   }, []);
 
-  const loadData = async () => {
+  const loadLimits = async () => {
+    try {
+      const data = await fetchCodexLimits();
+      setLimits(data);
+      setLimitsUpdatedAt(Date.now());
+      setLimitsError(null);
+    } catch (err) {
+      setLimitsError(String(err));
+    }
+  };
+
+  const loadAnalytics = async () => {
+    try {
+      const data = await fetchServerCreditAnalytics();
+      setAnalytics(data);
+      setAnalyticsUpdatedAt(Date.now());
+      setAnalyticsError(null);
+    } catch (err) {
+      setAnalyticsError(String(err));
+    }
+  };
+
+  // Quota refreshes every minute; server analytics only every 5 minutes so the
+  // WHAM daily endpoints are not hammered by the compact window.
+  const refreshAll = async () => {
     setIsRefreshing(true);
     try {
-      const [limitsResult, analyticsResult] = await Promise.allSettled([
-        fetchCodexLimits(),
-        fetchServerCreditAnalytics(),
-      ]);
-
-      if (limitsResult.status === "fulfilled") {
-        setLimits(limitsResult.value);
-        setLimitsUpdatedAt(Date.now());
-      }
-      if (analyticsResult.status === "fulfilled") {
-        setAnalytics(analyticsResult.value);
-        setAnalyticsUpdatedAt(Date.now());
-      }
-      const firstError =
-        limitsResult.status === "rejected"
-          ? limitsResult.reason
-          : analyticsResult.status === "rejected"
-            ? analyticsResult.reason
-            : null;
-      setError(firstError ? String(firstError) : null);
+      await Promise.allSettled([loadLimits(), loadAnalytics()]);
     } finally {
       setIsRefreshing(false);
     }
   };
 
   useEffect(() => {
-    void loadData();
-    const limitsTimer = window.setInterval(() => void loadData(), LIMITS_REFRESH_MS);
-    const analyticsTimer = window.setInterval(() => void loadData(), ANALYTICS_REFRESH_MS);
+    void refreshAll();
+    const limitsTimer = window.setInterval(() => void loadLimits(), LIMITS_REFRESH_MS);
+    const analyticsTimer = window.setInterval(() => void loadAnalytics(), ANALYTICS_REFRESH_MS);
     return () => {
       window.clearInterval(limitsTimer);
       window.clearInterval(analyticsTimer);
@@ -135,9 +141,12 @@ export function CompactMonitor() {
   const session = limits?.session ?? null;
   const weekly = limits?.weekly ?? null;
 
+  const error = limitsError ?? analyticsError;
   const today = analytics?.today;
+  // Model split must reflect the same window as the headline figure above it,
+  // which is Today — not the full 30-day aggregate.
   const modelPercent = (model: string) =>
-    analytics?.models.find((entry) => entry.model === model)?.percent ?? 0;
+    analytics?.today?.models.find((entry) => entry.model === model)?.percent ?? 0;
 
   return (
     <div className="flex h-screen select-none flex-col overflow-hidden bg-background text-foreground">
@@ -157,7 +166,7 @@ export function CompactMonitor() {
         <div className="ml-auto flex items-center gap-1">
           <button
             type="button"
-            onClick={() => void loadData()}
+            onClick={() => void refreshAll()}
             disabled={isRefreshing}
             className="rounded-md p-1 text-muted-foreground hover:bg-muted/60 hover:text-foreground disabled:opacity-50"
             aria-label={t("compact.refresh")}
