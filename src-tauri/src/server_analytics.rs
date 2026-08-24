@@ -5,25 +5,26 @@ use serde_json::Value;
 use std::time::Duration;
 
 const DAILY_WORKSPACE_USAGE_COUNTS_URL: &str =
-    "https://chatgpt.com/backend-api/wham/usage/daily-workspace-usage-counts";
+    "https://chatgpt.com/backend-api/wham/analytics/daily-workspace-usage-counts";
 const DAILY_TOKEN_USAGE_BREAKDOWN_URL: &str =
     "https://chatgpt.com/backend-api/wham/usage/daily-token-usage-breakdown";
 const REQUEST_TIMEOUT_SECS: u64 = 30;
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
 pub(crate) struct WorkspaceUsageCountsDay {
     pub date: String,
-    #[serde(
-        rename = "uncachedTextInputTokens",
-        alias = "uncached_text_input_tokens"
-    )]
+    pub totals: WorkspaceUsageCountsTotals,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+pub(crate) struct WorkspaceUsageCountsTotals {
+    #[serde(alias = "uncachedTextInputTokens")]
     pub uncached_text_input_tokens: i64,
-    #[serde(rename = "cachedTextInputTokens", alias = "cached_text_input_tokens")]
+    #[serde(alias = "cachedTextInputTokens")]
     pub cached_text_input_tokens: i64,
-    #[serde(rename = "textOutputTokens", alias = "text_output_tokens")]
+    #[serde(alias = "textOutputTokens")]
     pub text_output_tokens: i64,
-    #[serde(rename = "textTotalTokens", alias = "text_total_tokens")]
+    #[serde(alias = "textTotalTokens")]
     pub text_total_tokens: i64,
 }
 
@@ -47,9 +48,15 @@ pub fn fetch_server_credit_analytics() -> Result<ServerCreditAnalyticsResponse, 
     let timezone = date::resolve_app_timezone();
     let today = date::date_key_in_timezone(chrono::Utc::now(), &timezone);
     let start_date = date::shift_date_key(&today, -29)?;
+    // WHAM date windows are requested with an exclusive end boundary (tomorrow)
+    // so today's partial row is always covered regardless of server convention;
+    // rows beyond today are clamped client-side before analysis.
+    let request_end_date = date::shift_date_key(&today, 1)?;
 
-    let counts = fetch_workspace_usage_counts(&start_date, &today)?;
-    let breakdowns = fetch_token_usage_breakdown(&start_date, &today)?;
+    let mut counts = fetch_workspace_usage_counts(&start_date, &request_end_date)?;
+    let mut breakdowns = fetch_token_usage_breakdown(&start_date, &request_end_date)?;
+    retain_dates_up_to_today(&mut counts, &today, |day| &day.date);
+    retain_dates_up_to_today(&mut breakdowns, &today, |day| &day.date);
 
     Ok(credit_analytics::build_server_credit_analytics(
         counts,
@@ -58,6 +65,10 @@ pub fn fetch_server_credit_analytics() -> Result<ServerCreditAnalyticsResponse, 
         &start_date,
         &today,
     ))
+}
+
+fn retain_dates_up_to_today<T>(rows: &mut Vec<T>, today: &str, date_of: impl Fn(&T) -> &str) {
+    rows.retain(|row| date_of(row) <= today);
 }
 
 pub(crate) fn fetch_workspace_usage_counts(
@@ -70,6 +81,7 @@ pub(crate) fn fetch_workspace_usage_counts(
         DAILY_WORKSPACE_USAGE_COUNTS_URL,
         start_date,
         end_date,
+        &[("workspace_user", "true")],
     )?;
     parse_workspace_counts(&body)
 }
@@ -84,6 +96,7 @@ pub(crate) fn fetch_token_usage_breakdown(
         DAILY_TOKEN_USAGE_BREAKDOWN_URL,
         start_date,
         end_date,
+        &[],
     )?;
     parse_token_usage_breakdown(&body)
 }
@@ -104,9 +117,10 @@ fn send_authenticated_get(
     url: &str,
     start_date: &str,
     end_date: &str,
+    extra_query: &[(&str, &str)],
 ) -> Result<String, String> {
     let auth = codex_limits::load_codex_auth()?;
-    let request = build_request(client, url, start_date, end_date, &auth)?;
+    let request = build_request(client, url, start_date, end_date, &auth, extra_query)?;
     let response = request
         .send()
         .map_err(|error| format!("Server analytics request failed: {error}"))?;
@@ -127,14 +141,18 @@ fn build_request(
     start_date: &str,
     end_date: &str,
     auth: &codex_limits::CodexAuth,
+    extra_query: &[(&str, &str)],
 ) -> Result<RequestBuilder, String> {
+    let mut query = vec![
+        ("start_date", start_date),
+        ("end_date", end_date),
+        ("group_by", "day"),
+    ];
+    query.extend(extra_query.iter().copied());
+
     let mut request = client
         .get(url)
-        .query(&[
-            ("start_date", start_date),
-            ("end_date", end_date),
-            ("group_by", "day"),
-        ])
+        .query(&query)
         .bearer_auth(&auth.access_token)
         .header("Accept", "application/json")
         .header("Origin", "https://chatgpt.com")
@@ -179,6 +197,22 @@ fn parse_token_usage_breakdown(body: &str) -> Result<Vec<TokenUsageBreakdownDay>
             "Token usage breakdown response did not contain an array, data array, or days array."
                 .to_string()
         })?;
+    // The WHAM API reports `units` at the wrapper level; inject it into each day
+    // so downstream percent checks keep failing closed when units are missing.
+    let wrapper_units = value
+        .get("units")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
+    let items: Vec<Value> = items
+        .into_iter()
+        .map(|mut day| {
+            if day.get("units").is_none() {
+                day["units"] = Value::String(wrapper_units.clone());
+            }
+            day
+        })
+        .collect();
     serde_json::from_value(Value::Array(items))
         .map_err(|error| format!("Failed to parse token usage breakdown array: {error}"))
 }
@@ -186,6 +220,26 @@ fn parse_token_usage_breakdown(body: &str) -> Result<Vec<TokenUsageBreakdownDay>
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn counts_day(date: &str) -> WorkspaceUsageCountsDay {
+        WorkspaceUsageCountsDay {
+            date: date.to_string(),
+            totals: WorkspaceUsageCountsTotals {
+                uncached_text_input_tokens: 100,
+                cached_text_input_tokens: 200,
+                text_output_tokens: 300,
+                text_total_tokens: 600,
+            },
+        }
+    }
+
+    fn breakdown_day(date: &str) -> TokenUsageBreakdownDay {
+        TokenUsageBreakdownDay {
+            date: date.to_string(),
+            units: "percent".to_string(),
+            models: Vec::new(),
+        }
+    }
 
     #[test]
     fn parses_7d_workspace_counts_fixture() {
@@ -225,10 +279,50 @@ mod tests {
 
     #[test]
     fn parses_wrapped_response_arrays() {
-        let body = r#"{"data":[{"date":"2026-08-01","uncached_text_input_tokens":1000,"cached_text_input_tokens":2000,"text_output_tokens":3000,"text_total_tokens":6000}]}"#;
+        let body = r#"{"data":[{"date":"2026-08-01","totals":{"uncached_text_input_tokens":1000,"cached_text_input_tokens":2000,"text_output_tokens":3000,"text_total_tokens":6000}}]}"#;
         let parsed = parse_workspace_counts(body).unwrap();
         assert_eq!(parsed.len(), 1);
         assert_eq!(parsed[0].date, "2026-08-01");
+        assert_eq!(parsed[0].totals.uncached_text_input_tokens, 1000);
+    }
+
+    #[test]
+    fn rejects_counts_without_totals_block() {
+        let error = parse_workspace_counts(r#"{"data":[{"date":"2026-08-01"}]}"#).unwrap_err();
+        assert!(error.contains("Failed to parse workspace counts array"));
+    }
+
+    #[test]
+    fn injects_wrapper_units_into_days() {
+        let body =
+            r#"{"data":[{"date":"2026-08-01","models":[]}],"units":"percent","group_by":"day"}"#;
+        let parsed = parse_token_usage_breakdown(body).unwrap();
+        assert_eq!(parsed.len(), 1);
+        assert_eq!(parsed[0].units, "percent");
+    }
+
+    #[test]
+    fn missing_wrapper_units_fails_closed_per_day() {
+        let body = r#"{"data":[{"date":"2026-08-01","models":[]}]}"#;
+        let parsed = parse_token_usage_breakdown(body).unwrap();
+        assert_eq!(parsed[0].units, "");
+    }
+
+    #[test]
+    fn retains_only_rows_up_to_today() {
+        let mut counts = vec![
+            counts_day("2026-08-22"),
+            counts_day("2026-08-24"),
+            counts_day("2026-08-25"),
+        ];
+        retain_dates_up_to_today(&mut counts, "2026-08-24", |day| &day.date);
+        let dates: Vec<&str> = counts.iter().map(|day| day.date.as_str()).collect();
+        assert_eq!(dates, vec!["2026-08-22", "2026-08-24"]);
+
+        let mut breakdowns = vec![breakdown_day("2026-08-23"), breakdown_day("2026-08-25")];
+        retain_dates_up_to_today(&mut breakdowns, "2026-08-24", |day| &day.date);
+        let dates: Vec<&str> = breakdowns.iter().map(|day| day.date.as_str()).collect();
+        assert_eq!(dates, vec!["2026-08-23"]);
     }
 
     #[test]

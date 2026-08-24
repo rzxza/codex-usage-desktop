@@ -121,14 +121,45 @@ pub fn build_server_credit_analytics(
 }
 
 fn token_total(day: &WorkspaceUsageCountsDay) -> i64 {
-    day.uncached_text_input_tokens + day.cached_text_input_tokens + day.text_output_tokens
+    day.totals.uncached_text_input_tokens
+        + day.totals.cached_text_input_tokens
+        + day.totals.text_output_tokens
 }
 
 fn base_credits(day: &WorkspaceUsageCountsDay) -> f64 {
-    (LUNA_INPUT_PER_MILLION * day.uncached_text_input_tokens as f64
-        + LUNA_CACHED_INPUT_PER_MILLION * day.cached_text_input_tokens as f64
-        + LUNA_OUTPUT_PER_MILLION * day.text_output_tokens as f64)
+    (LUNA_INPUT_PER_MILLION * day.totals.uncached_text_input_tokens as f64
+        + LUNA_CACHED_INPUT_PER_MILLION * day.totals.cached_text_input_tokens as f64
+        + LUNA_OUTPUT_PER_MILLION * day.totals.text_output_tokens as f64)
         / MILLION
+}
+
+/// Percentage-point share below which unsupported model/speed entries in a
+/// breakdown are considered legacy residue (e.g. `gpt-5.5: 0.0`) and ignored.
+/// Anything above this threshold makes the whole day ineligible so unknown
+/// rates are never guessed (fail closed).
+const NEGLIGIBLE_MODEL_PERCENT: f64 = 0.05;
+
+/// Splits a breakdown into rate-table models on standard speed and the combined
+/// percentage share of everything else. Returns `None` when no usable models
+/// remain or the ignored share is material, meaning the day must be rejected.
+fn usable_models(
+    models: &[TokenUsageBreakdownModel],
+) -> Option<(Vec<&TokenUsageBreakdownModel>, f64)> {
+    let mut known = Vec::new();
+    let mut ignored_percent = 0.0;
+    for model in models {
+        if credit_rates::is_supported_rate_model(&model.model)
+            && credit_rates::is_standard_speed(&model.speed)
+        {
+            known.push(model);
+        } else {
+            ignored_percent += model.credits;
+        }
+    }
+    if known.is_empty() || ignored_percent > NEGLIGIBLE_MODEL_PERCENT {
+        return None;
+    }
+    Some((known, ignored_percent))
 }
 
 fn is_eligible_for_calibration(
@@ -146,17 +177,14 @@ fn is_eligible_for_calibration(
     if breakdown.units != "percent" || breakdown.models.is_empty() {
         return false;
     }
-    let total_percent: f64 = breakdown.models.iter().map(|model| model.credits).sum();
+    let Some((known, _)) = usable_models(&breakdown.models) else {
+        return false;
+    };
+    let total_percent: f64 = known.iter().map(|model| model.credits).sum();
     if total_percent <= 0.0 {
         return false;
     }
-    if !breakdown.models.iter().all(|model| {
-        credit_rates::is_supported_rate_model(&model.model)
-            && credit_rates::is_standard_speed(&model.speed)
-    }) {
-        return false;
-    }
-    weighted_percent_sum(&breakdown.models) > 0.0
+    weighted_percent_sum_known(&known) > 0.0
 }
 
 fn compute_k_day(
@@ -167,17 +195,12 @@ fn compute_k_day(
     if total_tokens <= 0 || breakdown.units != "percent" || breakdown.models.is_empty() {
         return None;
     }
-    let total_percent: f64 = breakdown.models.iter().map(|model| model.credits).sum();
+    let (known, _) = usable_models(&breakdown.models)?;
+    let total_percent: f64 = known.iter().map(|model| model.credits).sum();
     if total_percent <= 0.0 {
         return None;
     }
-    if !breakdown.models.iter().all(|model| {
-        credit_rates::is_supported_rate_model(&model.model)
-            && credit_rates::is_standard_speed(&model.speed)
-    }) {
-        return None;
-    }
-    let weighted = weighted_percent_sum(&breakdown.models);
+    let weighted = weighted_percent_sum_known(&known);
     if weighted <= 0.0 {
         return None;
     }
@@ -185,6 +208,16 @@ fn compute_k_day(
 }
 
 fn weighted_percent_sum(models: &[TokenUsageBreakdownModel]) -> f64 {
+    models
+        .iter()
+        .filter_map(|model| {
+            credit_rates::lookup_model_rate(&model.model)
+                .map(|rate| model.credits / f64::from(rate.base_multiplier))
+        })
+        .sum()
+}
+
+fn weighted_percent_sum_known(models: &[&TokenUsageBreakdownModel]) -> f64 {
     models
         .iter()
         .filter_map(|model| {
@@ -276,14 +309,8 @@ fn build_daily_usage(
             date == today && total_tokens > 0 && (breakdown_day.is_none() || total_percent <= 0.0);
         let is_partial = date == today;
 
-        let (credits, model_credits) = build_day_credits(
-            counts_day,
-            breakdown_day,
-            total_tokens,
-            &models,
-            total_percent,
-            k,
-        );
+        let (credits, model_credits) =
+            build_day_credits(counts_day, breakdown_day, total_tokens, &models, k);
 
         daily.push(DailyCreditUsage {
             date,
@@ -301,7 +328,6 @@ fn build_day_credits(
     breakdown_day: Option<&TokenUsageBreakdownDay>,
     total_tokens: i64,
     models: &[TokenUsageBreakdownModel],
-    total_percent: f64,
     k: Option<f64>,
 ) -> (Option<f64>, Vec<ModelCreditUsage>) {
     let Some(k) = k else {
@@ -316,16 +342,17 @@ fn build_day_credits(
     let Some(breakdown) = breakdown_day else {
         return (None, Vec::new());
     };
-    if breakdown.units != "percent" || total_percent <= 0.0 {
+    if breakdown.units != "percent" {
         return (None, Vec::new());
     }
-    if !models.iter().all(|model| {
-        credit_rates::is_supported_rate_model(&model.model)
-            && credit_rates::is_standard_speed(&model.speed)
-    }) {
+    let Some((known, _)) = usable_models(models) else {
+        return (None, Vec::new());
+    };
+    let total_percent: f64 = known.iter().map(|model| model.credits).sum();
+    if total_percent <= 0.0 {
         return (None, Vec::new());
     }
-    let model_credits = models
+    let model_credits = known
         .iter()
         .filter_map(|model| {
             credit_rates::lookup_model_rate(&model.model).map(|_| ModelCreditUsage {
@@ -389,6 +416,7 @@ mod tests {
     use super::*;
     use crate::server_analytics::{
         TokenUsageBreakdownDay, TokenUsageBreakdownModel, WorkspaceUsageCountsDay,
+        WorkspaceUsageCountsTotals,
     };
 
     fn counts(
@@ -400,10 +428,12 @@ mod tests {
     ) -> WorkspaceUsageCountsDay {
         WorkspaceUsageCountsDay {
             date: date.to_string(),
-            uncached_text_input_tokens: uncached,
-            cached_text_input_tokens: cached,
-            text_output_tokens: output,
-            text_total_tokens: total,
+            totals: WorkspaceUsageCountsTotals {
+                uncached_text_input_tokens: uncached,
+                cached_text_input_tokens: cached,
+                text_output_tokens: output,
+                text_total_tokens: total,
+            },
         }
     }
 
@@ -515,6 +545,85 @@ mod tests {
         );
         assert_eq!(response.calibration.sample_count, 1);
         assert_eq!(response.calibration.status, CalibrationStatus::Invalid);
+        assert_eq!(
+            response
+                .daily
+                .iter()
+                .find(|day| day.date == "2026-08-20")
+                .unwrap()
+                .credits,
+            None
+        );
+    }
+
+    #[test]
+    fn ignores_zero_percent_unknown_legacy_models() {
+        // Real WHAM breakdowns keep listing retired models (e.g. gpt-5.5) with a
+        // zero percent share; such residue must not invalidate the whole day.
+        let counts = vec![
+            counts("2026-08-20", 100_000, 0, 100_000, 200_000),
+            counts("2026-08-19", 100_000, 0, 100_000, 200_000),
+        ];
+        let breakdowns = vec![
+            breakdown(
+                "2026-08-20",
+                "percent",
+                vec![
+                    ("gpt-5.6-sol", "standard", 50.0),
+                    ("gpt-5.5", "standard", 0.0),
+                ],
+            ),
+            breakdown(
+                "2026-08-19",
+                "percent",
+                vec![
+                    ("gpt-5.6-sol", "standard", 50.0),
+                    ("gpt-5.5", "standard", 0.0),
+                ],
+            ),
+        ];
+        let response = build_server_credit_analytics(
+            counts,
+            breakdowns,
+            "2026-08-21",
+            "2026-08-01",
+            "2026-08-21",
+        );
+        assert_eq!(response.calibration.sample_count, 2);
+        // Two agreeing samples cap at Warning; Excellent requires >= 3 samples.
+        assert_eq!(response.calibration.status, CalibrationStatus::Warning);
+    }
+
+    #[test]
+    fn rejects_day_when_unknown_model_share_is_material() {
+        let counts = vec![
+            counts("2026-08-20", 100_000, 0, 100_000, 200_000),
+            counts("2026-08-19", 100_000, 0, 100_000, 200_000),
+        ];
+        let breakdowns = vec![
+            breakdown(
+                "2026-08-20",
+                "percent",
+                vec![
+                    ("gpt-5.6-sol", "standard", 50.0),
+                    ("gpt-5.5", "standard", 6.9),
+                ],
+            ),
+            breakdown(
+                "2026-08-19",
+                "percent",
+                vec![("gpt-5.6-sol", "standard", 50.0)],
+            ),
+        ];
+        let response = build_server_credit_analytics(
+            counts,
+            breakdowns,
+            "2026-08-21",
+            "2026-08-01",
+            "2026-08-21",
+        );
+        // Only the clean day calibrates; the contaminated day yields no credits.
+        assert_eq!(response.calibration.sample_count, 1);
         assert_eq!(
             response
                 .daily

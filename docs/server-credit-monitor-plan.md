@@ -361,11 +361,14 @@ GET https://chatgpt.com/backend-api/wham/usage
 新增：
 
 ```http
-GET /backend-api/wham/usage/daily-workspace-usage-counts
+GET /backend-api/wham/analytics/daily-workspace-usage-counts
     ?start_date=YYYY-MM-DD
     &end_date=YYYY-MM-DD
     &group_by=day
+    &workspace_user=true
 ```
+
+注意：`end_date` 按排他边界处理——要包含今天，请求应使用明天的日期，客户端再钳制到今天。token 字段位于每日对象的 `totals` 内。
 
 需要的字段：
 
