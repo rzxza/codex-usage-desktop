@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { availableMonitors, getCurrentWindow } from "@tauri-apps/api/window";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { PhysicalPosition } from "@tauri-apps/api/dpi";
 import { RefreshCcw, ExternalLink, GripHorizontal } from "lucide-react";
@@ -72,12 +72,25 @@ export function CompactMonitor() {
     const current = getCurrentWindow();
     const saved = localStorage.getItem("compact_window_position");
     if (saved) {
-      try {
-        const { x, y } = JSON.parse(saved) as { x: number; y: number };
-        void current.setPosition(new PhysicalPosition(x, y));
-      } catch (_) {
-        // Ignore malformed saved position.
-      }
+      void (async () => {
+        try {
+          const { x, y } = JSON.parse(saved) as { x: number; y: number };
+          // Only restore when the point lies inside a currently connected
+          // display; otherwise keep the configured centered position.
+          const monitors = await availableMonitors();
+          const onScreen = monitors.some(
+            (monitor) =>
+              x >= monitor.position.x &&
+              y >= monitor.position.y &&
+              x < monitor.position.x + monitor.size.width &&
+              y < monitor.position.y + monitor.size.height,
+          );
+          if (!onScreen) return;
+          await current.setPosition(new PhysicalPosition(x, y));
+        } catch (_) {
+          // Ignore malformed saved position.
+        }
+      })();
     }
     let unlisten: (() => void) | null = null;
     void current.onMoved((event) => {
@@ -228,6 +241,12 @@ export function CompactMonitor() {
             <p className="mt-1 font-mono text-lg font-bold tabular-nums">
               {session ? `${Math.round(session.remainingPercent)}%` : "—"}
             </p>
+            <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted/40">
+              <div
+                className={cn("h-full rounded-full", (session?.remainingPercent ?? 0) < 20 ? "bg-error/80" : "bg-indigo-500")}
+                style={{ width: `${Math.max(0, Math.min(100, session?.remainingPercent ?? 0))}%` }}
+              />
+            </div>
             <p className="mt-0.5 text-[10px] text-muted-foreground">
               {session ? `${formatCountdown(session.resetsAt, now, t)}` : t("compact.unavailable")}
             </p>
@@ -239,6 +258,12 @@ export function CompactMonitor() {
             <p className="mt-1 font-mono text-lg font-bold tabular-nums">
               {weekly ? `${Math.round(weekly.remainingPercent)}%` : "—"}
             </p>
+            <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted/40">
+              <div
+                className={cn("h-full rounded-full", (weekly?.remainingPercent ?? 0) < 20 ? "bg-warning/80" : "bg-teal-500")}
+                style={{ width: `${Math.max(0, Math.min(100, weekly?.remainingPercent ?? 0))}%` }}
+              />
+            </div>
             <p className="mt-0.5 text-[10px] text-muted-foreground">
               {weekly ? `${formatCountdown(weekly.resetsAt, now, t)}` : t("compact.unavailable")}
             </p>

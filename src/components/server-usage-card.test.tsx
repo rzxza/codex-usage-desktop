@@ -76,6 +76,13 @@ describe("ServerUsageCard", () => {
     expect(screen.getByText("boom")).toBeInTheDocument();
   });
 
+  it("shows the partial badge while today is still syncing", () => {
+    render(<ServerUsageCard analytics={analytics} error={null} />);
+    expect(screen.getByText("Partial / analytics delayed")).toBeInTheDocument();
+    // Derived-credit disclaimer stays visible next to the numbers.
+    expect(screen.getByText("Derived Credits")).toBeInTheDocument();
+  });
+
   it("shows invalid status when calibration is unstable", () => {
     render(
       <ServerUsageCard

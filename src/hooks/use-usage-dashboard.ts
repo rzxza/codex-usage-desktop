@@ -757,6 +757,25 @@ export function useUsageDashboard() {
       items.push({ id: "status_cost", text, enabled: false });
     }
 
+    if (serverAnalytics) {
+      const todayCredits = serverAnalytics.today?.credits;
+      if (todayCredits !== null && todayCredits !== undefined) {
+        items.push({
+          id: "status_today_credits",
+          text: `${t("compact.today_credits")}: ≈${formatNumber(todayCredits)}`,
+          enabled: false,
+        });
+      }
+      const weekCredits = serverAnalytics.last7Days.credits;
+      if (weekCredits !== null && weekCredits !== undefined) {
+        items.push({
+          id: "status_7d_credits",
+          text: `${t("compact.seven_day_credits")}: ≈${formatNumber(weekCredits)}`,
+          enabled: false,
+        });
+      }
+    }
+
     items.push({ id: "toggle_compact", text: t("compact.toggle_tray"), enabled: true });
 
     void updateTray({

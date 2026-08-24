@@ -18,6 +18,7 @@ vi.mock("@tauri-apps/api/core", () => ({
 }));
 
 vi.mock("@tauri-apps/api/window", () => ({
+  availableMonitors: vi.fn().mockResolvedValue([{ position: { x: 0, y: 0 }, size: { width: 1920, height: 1080 } }]),
   getCurrentWindow: () => ({
     setPosition: vi.fn().mockResolvedValue(undefined),
     setAlwaysOnTop: vi.fn().mockResolvedValue(undefined),
