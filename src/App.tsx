@@ -10,6 +10,7 @@ import { ProjectUsageCard } from "@/components/project-usage-card";
 import { SettingsPage } from "@/components/settings-page";
 import { SessionUsageTable } from "@/components/session-usage-table";
 import { SessionDetailModal } from "@/components/session-detail-modal";
+import { ServerUsageCard } from "@/components/server-usage-card";
 import { ProjectSessionsModal } from "@/components/project-sessions-modal";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { RangeSwitcher } from "@/components/range-switcher";
@@ -41,6 +42,9 @@ export default function App() {
     codexLimits,
     codexLimitsError,
     codexQuotaForecast,
+    serverAnalytics,
+    serverAnalyticsError,
+    isServerAnalyticsLoading,
     scanMessage,
     error,
     isLoading,
@@ -313,6 +317,14 @@ export default function App() {
                   quotaForecast={codexQuotaForecast}
                   onOpenQuotaForecast={() => void handleOpenCodexQuotaForecast()}
                   onOpenResetCredits={() => void handleOpenResetCredits()}
+                />
+              </div>
+
+              <div className="min-w-0">
+                <ServerUsageCard
+                  analytics={serverAnalytics}
+                  error={serverAnalyticsError}
+                  isLoading={isServerAnalyticsLoading}
                 />
               </div>
             </div>

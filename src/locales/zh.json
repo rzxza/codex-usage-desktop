@@ -253,7 +253,11 @@
   "models": {
     "title": "模型使用详情",
     "subtitle": "分析不同 AI 模型下的 Token 消耗与成本分布。",
-    "views": { "label": "模型页视图", "usage": "用量分析", "catalog": "价格目录" },
+    "views": {
+      "label": "模型页视图",
+      "usage": "用量分析",
+      "catalog": "价格目录"
+    },
     "catalog": {
       "subtitle": "比较 LiteLLM 价格目录中的聊天模型 Token 单价。",
       "search": "搜索模型或供应商...",
@@ -301,8 +305,18 @@
       "title": "模型比较",
       "subtitle": "比较用量结构、标准单价、有效单价与成本影响；单价均按每百万 Token 计算。"
     },
-    "sort": { "label": "降序排序", "tokens": "总 Token", "cost": "预估成本", "effective": "有效单价" },
-    "groups": { "model": "模型与用量占比", "tokens": "Token 构成", "prices": "每百万 Token 单价", "cost": "成本影响" },
+    "sort": {
+      "label": "降序排序",
+      "tokens": "总 Token",
+      "cost": "预估成本",
+      "effective": "有效单价"
+    },
+    "groups": {
+      "model": "模型与用量占比",
+      "tokens": "Token 构成",
+      "prices": "每百万 Token 单价",
+      "cost": "成本影响"
+    },
     "prices": {
       "input": "输入",
       "cached": "缓存输入",
@@ -313,7 +327,13 @@
       "output_tooltip": "每百万输出 Token 的标准单价",
       "effective_tooltip": "按当前用量结构以预估成本除以总 Token 计算"
     },
-    "price_legend": { "label": "相对价格热度图例", "low": "低价", "medium": "中价", "high": "高价", "equal": "同价" }
+    "price_legend": {
+      "label": "相对价格热度图例",
+      "low": "低价",
+      "medium": "中价",
+      "high": "高价",
+      "equal": "同价"
+    }
   },
   "projects": {
     "title": "项目使用详情",
@@ -329,9 +349,30 @@
       "actions": "操作"
     },
     "token_legend": "Token 与成本图例",
-    "legend": { "uncached": "非缓存输入", "cached": "缓存输入", "output": "输出", "low_cost": "低成本", "medium_cost": "中成本", "high_cost": "高成本" },
-    "sort": { "label": "排序字段", "name": "项目名称", "total": "总 Token", "input": "输入（含缓存）", "cached": "缓存输入", "output": "输出", "cost": "成本", "ascending": "升序排列", "descending": "降序排列" },
-    "values": { "input": "输入", "cached": "缓存", "output": "输出" },
+    "legend": {
+      "uncached": "非缓存输入",
+      "cached": "缓存输入",
+      "output": "输出",
+      "low_cost": "低成本",
+      "medium_cost": "中成本",
+      "high_cost": "高成本"
+    },
+    "sort": {
+      "label": "排序字段",
+      "name": "项目名称",
+      "total": "总 Token",
+      "input": "输入（含缓存）",
+      "cached": "缓存输入",
+      "output": "输出",
+      "cost": "成本",
+      "ascending": "升序排列",
+      "descending": "降序排列"
+    },
+    "values": {
+      "input": "输入",
+      "cached": "缓存",
+      "output": "输出"
+    },
     "highest": "最高",
     "relative_peak": "峰值的 {{percent}}%",
     "open_details": "打开 {{project}} 的项目分析",
@@ -437,18 +478,18 @@
     "token_bar_empty": "无 Token 活动",
     "token_total_label": "Token 总数 {{total}}；相当于当前可见会话最高值的 {{percent}}",
     "cost_pill_label": "花费 {{cost}}；相当于当前可见会话最高值的 {{percent}}",
-  "open_session": "打开会话 {{title}}",
-  "quota": {
-    "title": "观测到的限额消耗",
-    "estimated": "估算",
-    "five_hour": "5h",
-    "weekly": "周",
-    "approx": "约",
-    "aria_label": "估算的 5 小时及每周限额消耗",
-    "resets": "重置时间：{{value}}",
-    "caveat": "根据日志中的整数快照估算。取整及同时运行的其他 Codex 会话可能影响归因；跨重置周期分别展示。"
-  },
-  "detail": {
+    "open_session": "打开会话 {{title}}",
+    "quota": {
+      "title": "观测到的限额消耗",
+      "estimated": "估算",
+      "five_hour": "5h",
+      "weekly": "周",
+      "approx": "约",
+      "aria_label": "估算的 5 小时及每周限额消耗",
+      "resets": "重置时间：{{value}}",
+      "caveat": "根据日志中的整数快照估算。取整及同时运行的其他 Codex 会话可能影响归因；跨重置周期分别展示。"
+    },
+    "detail": {
       "modal_title": "会话详情",
       "close_aria": "关闭会话详情",
       "timestamp": "记录时间",
@@ -626,5 +667,51 @@
     "dialog_title_markdown": "导出 Codex 使用情况至 Markdown",
     "excel_filter_name": "Excel 工作簿",
     "markdown_filter_name": "Markdown 文档"
+  },
+  "server_usage": {
+    "title": "服务端用量",
+    "derived_label": "推算 Credits",
+    "today": "今天",
+    "last_7_days": "最近 7 天",
+    "last_30_days": "最近 30 天",
+    "models": "模型占比",
+    "calibration": "校准",
+    "k": "K",
+    "samples": "样本数",
+    "deviation": "偏差",
+    "updated": "更新时间",
+    "loading": "正在加载服务端分析…",
+    "unavailable": "服务端分析不可用",
+    "na": "无",
+    "status_ready": "正常",
+    "status_partial": "部分",
+    "status_pending": "等待同步",
+    "status_invalid": "不可用",
+    "cal_excellent": "优秀",
+    "cal_good": "良好",
+    "cal_warning": "警告",
+    "cal_invalid": "不稳定",
+    "pending": "等待同步",
+    "partial": "部分 / 分析延迟"
+  },
+  "compact": {
+    "title": "Codex 监控",
+    "five_hour": "5 小时",
+    "weekly": "每周",
+    "today_credits": "今日",
+    "seven_day_credits": "7 天",
+    "model_split": "Sol · Luna · Terra",
+    "quota_updated": "额度",
+    "analytics_updated": "分析",
+    "refresh": "刷新",
+    "open_dashboard": "打开主面板",
+    "na": "无",
+    "soon": "即将重置",
+    "unavailable": "不可用",
+    "pending": "等待同步",
+    "partial": "部分",
+    "calibration_invalid": "不稳定",
+    "error_short": "同步错误",
+    "toggle_tray": "紧凑监控"
   }
 }

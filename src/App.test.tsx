@@ -1582,6 +1582,27 @@ describe("App", () => {
         };
       }
 
+      if (command === "fetch_server_credit_analytics") {
+        return {
+          fetchedAt: "2026-04-26T00:00:00.000Z",
+          startDate: "2026-03-28",
+          endDate: "2026-04-26",
+          status: "invalid",
+          calibration: {
+            k: null,
+            sampleCount: 0,
+            deviation: null,
+            maxDeviation: null,
+            status: "invalid",
+          },
+          today: null,
+          last7Days: { credits: null, models: [] },
+          last30Days: { credits: null, models: [] },
+          daily: [],
+          models: [],
+        };
+      }
+
       throw new Error(`Unexpected invoke: ${command}`);
     });
 
@@ -1593,12 +1614,13 @@ describe("App", () => {
 
     await waitFor(() => expect(screen.getAllByText("3,400").length).toBeGreaterThan(0));
 
-    await waitFor(() => expect(invokeMock).toHaveBeenCalledTimes(5));
+    await waitFor(() => expect(invokeMock).toHaveBeenCalledTimes(6));
     expect(invokeMock).toHaveBeenNthCalledWith(1, "fetch_codex_limits");
-    expect(invokeMock).toHaveBeenNthCalledWith(2, "fetch_overview", { range: "30d" });
-    expect(invokeMock).toHaveBeenNthCalledWith(3, "scan_usage");
-    expect(invokeMock).toHaveBeenNthCalledWith(4, "check_for_updates");
-    expect(invokeMock).toHaveBeenNthCalledWith(5, "fetch_overview", { range: "30d" });
+    expect(invokeMock).toHaveBeenNthCalledWith(2, "fetch_server_credit_analytics");
+    expect(invokeMock).toHaveBeenNthCalledWith(3, "fetch_overview", { range: "30d" });
+    expect(invokeMock).toHaveBeenNthCalledWith(4, "scan_usage");
+    expect(invokeMock).toHaveBeenNthCalledWith(5, "check_for_updates");
+    expect(invokeMock).toHaveBeenNthCalledWith(6, "fetch_overview", { range: "30d" });
   });
 
   it("keeps the cached overview visible when the background scan fails", async () => {

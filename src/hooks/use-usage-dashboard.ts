@@ -7,11 +7,13 @@ import {
   exportUsage,
   fetchCodexLimits,
   fetchCodexQuotaForecast,
+  fetchServerCreditAnalytics,
   fetchMonthlyUsage,
   fetchOverview,
   resetUsageState,
   type CodexLimitsResponse,
   type CodexQuotaForecastResponse,
+  type ServerCreditAnalyticsResponse,
   type ExportFormat,
   type MonthlyUsageResponse,
   type OverviewResponse,
@@ -131,6 +133,9 @@ export function useUsageDashboard() {
   const [codexLimits, setCodexLimits] = useState<CodexLimitsResponse | null>(null);
   const [codexLimitsError, setCodexLimitsError] = useState<string | null>(null);
   const [codexQuotaForecast, setCodexQuotaForecast] = useState<CodexQuotaForecastResponse | null>(null);
+  const [serverAnalytics, setServerAnalytics] = useState<ServerCreditAnalyticsResponse | null>(null);
+  const [serverAnalyticsError, setServerAnalyticsError] = useState<string | null>(null);
+  const [isServerAnalyticsLoading, setIsServerAnalyticsLoading] = useState(false);
   const [scanMessage, setScanMessage] = useState(() => t("hero.sync_logs_to_cache_desc", { defaultValue: "Sync local logs to cache" }));
   const [error, setError] = useState<string | null>(null);
   const [bootstrapped, setBootstrapped] = useState(false);
@@ -297,6 +302,19 @@ export function useUsageDashboard() {
       setCodexQuotaForecast(null);
     }
   });
+  const loadServerCreditAnalytics = useEffectEvent(async () => {
+    setIsServerAnalyticsLoading(true);
+    try {
+      const data = await fetchServerCreditAnalytics();
+      setServerAnalytics(data);
+      setServerAnalyticsError(null);
+    } catch (serverError) {
+      setServerAnalytics(null);
+      setServerAnalyticsError(errorMessage(serverError, "Failed to load server credit analytics."));
+    } finally {
+      setIsServerAnalyticsLoading(false);
+    }
+  });
 
   const scanAndReloadOverview = useEffectEvent(async (startedAt: number, options?: { force?: boolean }) => {
     if (scanInFlightRef.current) {
@@ -361,6 +379,7 @@ export function useUsageDashboard() {
     const startedAt = performance.now();
     try {
       await scanAndReloadOverview(startedAt, { force: hasExpiredCodexLimitWindow(codexLimits) });
+      await loadServerCreditAnalytics();
     } catch (scanError) {
       setError(scanError instanceof Error ? scanError.message : "Background refresh failed.");
     }
@@ -502,6 +521,7 @@ export function useUsageDashboard() {
       // Do not block initial render on limits fetch
       void loadCodexLimits();
       void loadCodexQuotaForecast();
+      void loadServerCreditAnalytics();
       await loadOverview(range);
       setBootstrapped(true);
     } catch (loadError) {
@@ -543,6 +563,7 @@ export function useUsageDashboard() {
         await loadSessions();
       }
     }
+    void loadServerCreditAnalytics();
   });
 
   useEffect(() => {
@@ -736,6 +757,8 @@ export function useUsageDashboard() {
       items.push({ id: "status_cost", text, enabled: false });
     }
 
+    items.push({ id: "toggle_compact", text: t("compact.toggle_tray"), enabled: true });
+
     void updateTray({
       title,
       items,
@@ -806,6 +829,7 @@ export function useUsageDashboard() {
     try {
       await scanAndReloadOverview(startedAt, { force: true });
       await loadCodexQuotaForecast();
+      await loadServerCreditAnalytics();
     } catch (refreshError) {
       setError(refreshError instanceof Error ? refreshError.message : "Refresh failed.");
     } finally {
@@ -978,6 +1002,9 @@ export function useUsageDashboard() {
     codexLimits,
     codexLimitsError,
     codexQuotaForecast,
+    serverAnalytics,
+    serverAnalyticsError,
+    isServerAnalyticsLoading,
     scanMessage,
     error,
     isLoading,

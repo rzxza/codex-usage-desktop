@@ -253,7 +253,11 @@
   "models": {
     "title": "Model Usage Details",
     "subtitle": "Analyze your token and cost distribution by model.",
-    "views": { "label": "Model page view", "usage": "Usage Analysis", "catalog": "Pricing Catalog" },
+    "views": {
+      "label": "Model page view",
+      "usage": "Usage Analysis",
+      "catalog": "Pricing Catalog"
+    },
     "catalog": {
       "subtitle": "Compare chat model token prices from the LiteLLM pricing catalog.",
       "search": "Search models or providers...",
@@ -301,8 +305,18 @@
       "title": "Model comparison",
       "subtitle": "Compare usage mix, standard prices, effective price, and cost impact. All prices are per 1M tokens."
     },
-    "sort": { "label": "Sort descending", "tokens": "Total tokens", "cost": "Estimated cost", "effective": "Effective price" },
-    "groups": { "model": "Model & usage share", "tokens": "Token mix", "prices": "Prices / 1M tokens", "cost": "Cost impact" },
+    "sort": {
+      "label": "Sort descending",
+      "tokens": "Total tokens",
+      "cost": "Estimated cost",
+      "effective": "Effective price"
+    },
+    "groups": {
+      "model": "Model & usage share",
+      "tokens": "Token mix",
+      "prices": "Prices / 1M tokens",
+      "cost": "Cost impact"
+    },
     "prices": {
       "input": "Input",
       "cached": "Cached",
@@ -313,7 +327,13 @@
       "output_tooltip": "Standard price for one million output tokens",
       "effective_tooltip": "Estimated cost divided by total tokens for this usage mix"
     },
-    "price_legend": { "label": "Relative price heat legend", "low": "Low price", "medium": "Mid price", "high": "High price", "equal": "Same price" }
+    "price_legend": {
+      "label": "Relative price heat legend",
+      "low": "Low price",
+      "medium": "Mid price",
+      "high": "High price",
+      "equal": "Same price"
+    }
   },
   "projects": {
     "title": "Project Usage Details",
@@ -329,9 +349,30 @@
       "actions": "Actions"
     },
     "token_legend": "Token and cost legend",
-    "legend": { "uncached": "Non-cached input", "cached": "Cached input", "output": "Output", "low_cost": "Low cost", "medium_cost": "Medium cost", "high_cost": "High cost" },
-    "sort": { "label": "Sort by", "name": "Project name", "total": "Total tokens", "input": "Input (with cache)", "cached": "Cached input", "output": "Output", "cost": "Cost", "ascending": "Ascending order", "descending": "Descending order" },
-    "values": { "input": "Input", "cached": "Cached", "output": "Output" },
+    "legend": {
+      "uncached": "Non-cached input",
+      "cached": "Cached input",
+      "output": "Output",
+      "low_cost": "Low cost",
+      "medium_cost": "Medium cost",
+      "high_cost": "High cost"
+    },
+    "sort": {
+      "label": "Sort by",
+      "name": "Project name",
+      "total": "Total tokens",
+      "input": "Input (with cache)",
+      "cached": "Cached input",
+      "output": "Output",
+      "cost": "Cost",
+      "ascending": "Ascending order",
+      "descending": "Descending order"
+    },
+    "values": {
+      "input": "Input",
+      "cached": "Cached",
+      "output": "Output"
+    },
     "highest": "Highest",
     "relative_peak": "{{percent}}% of peak",
     "open_details": "Open analytics for {{project}}",
@@ -437,18 +478,18 @@
     "token_bar_empty": "No token activity",
     "token_total_label": "Total tokens {{total}}; {{percent}} of the highest visible session",
     "cost_pill_label": "Cost {{cost}}; {{percent}} of the highest visible session",
-  "open_session": "Open session {{title}}",
-  "quota": {
-    "title": "Observed quota usage",
-    "estimated": "Estimated",
-    "five_hour": "5h",
-    "weekly": "Weekly",
-    "approx": "Approx.",
-    "aria_label": "Estimated 5-hour and weekly quota usage",
-    "resets": "Reset: {{value}}",
-    "caveat": "Estimated from integer log snapshots. Rounding and other concurrent Codex sessions can affect attribution. Each reset window is shown separately."
-  },
-  "detail": {
+    "open_session": "Open session {{title}}",
+    "quota": {
+      "title": "Observed quota usage",
+      "estimated": "Estimated",
+      "five_hour": "5h",
+      "weekly": "Weekly",
+      "approx": "Approx.",
+      "aria_label": "Estimated 5-hour and weekly quota usage",
+      "resets": "Reset: {{value}}",
+      "caveat": "Estimated from integer log snapshots. Rounding and other concurrent Codex sessions can affect attribution. Each reset window is shown separately."
+    },
+    "detail": {
       "modal_title": "Session Details",
       "close_aria": "Close session detail",
       "timestamp": "Timestamp",
@@ -621,5 +662,51 @@
     "dialog_title_markdown": "Export Codex usage to Markdown",
     "excel_filter_name": "Excel Workbook",
     "markdown_filter_name": "Markdown"
+  },
+  "server_usage": {
+    "title": "Server Usage",
+    "derived_label": "Derived Credits",
+    "today": "Today",
+    "last_7_days": "Last 7 days",
+    "last_30_days": "Last 30 days",
+    "models": "Model split",
+    "calibration": "Calibration",
+    "k": "K",
+    "samples": "Samples",
+    "deviation": "Deviation",
+    "updated": "Updated",
+    "loading": "Loading server analytics…",
+    "unavailable": "Server analytics unavailable",
+    "na": "N/A",
+    "status_ready": "Ready",
+    "status_partial": "Partial",
+    "status_pending": "Pending",
+    "status_invalid": "Invalid",
+    "cal_excellent": "Excellent",
+    "cal_good": "Good",
+    "cal_warning": "Warning",
+    "cal_invalid": "Invalid",
+    "pending": "Sync pending",
+    "partial": "Partial / analytics delayed"
+  },
+  "compact": {
+    "title": "Codex Monitor",
+    "five_hour": "5h",
+    "weekly": "Weekly",
+    "today_credits": "Today",
+    "seven_day_credits": "7D",
+    "model_split": "Sol · Luna · Terra",
+    "quota_updated": "Quota",
+    "analytics_updated": "Analytics",
+    "refresh": "Refresh",
+    "open_dashboard": "Open Dashboard",
+    "na": "N/A",
+    "soon": "soon",
+    "unavailable": "Unavailable",
+    "pending": "Sync pending",
+    "partial": "Partial",
+    "calibration_invalid": "Unstable",
+    "error_short": "Sync error",
+    "toggle_tray": "Compact Monitor"
   }
 }

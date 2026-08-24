@@ -20,6 +20,19 @@
         "minHeight": 760,
         "resizable": true,
         "devtools": true
+      },
+      {
+        "label": "compact",
+        "title": "Codex Monitor",
+        "url": "index.html#/compact",
+        "width": 390,
+        "height": 300,
+        "resizable": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "decorations": false,
+        "visible": false,
+        "center": true
       }
     ],
     "security": {
