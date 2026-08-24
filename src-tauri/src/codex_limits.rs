@@ -153,9 +153,9 @@ struct CodexQuotaForecastScore {
 }
 
 #[derive(Debug, Clone)]
-struct CodexAuth {
-    access_token: String,
-    account_id: Option<String>,
+pub(crate) struct CodexAuth {
+    pub(crate) access_token: String,
+    pub(crate) account_id: Option<String>,
 }
 
 #[derive(Debug)]
@@ -720,7 +720,7 @@ impl From<OAuthRateLimitWindow> for RpcRateLimitWindow {
     }
 }
 
-fn load_codex_auth() -> Result<CodexAuth, String> {
+pub(crate) fn load_codex_auth() -> Result<CodexAuth, String> {
     let path = codex_auth_path().ok_or_else(|| "Codex auth path is unavailable.".to_string())?;
     let content = fs::read_to_string(&path)
         .map_err(|error| format!("Failed to read Codex auth at {}: {error}", path.display()))?;

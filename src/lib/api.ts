@@ -146,6 +146,54 @@ export type CodexQuotaForecastResponse = {
   nextRefreshAt: string;
 };
 
+
+export type CalibrationStatus = "excellent" | "good" | "warning" | "invalid";
+export type ServerCreditAnalyticsStatus = "ready" | "partial" | "pending" | "invalid";
+
+export type CalibrationSummary = {
+  k: number | null;
+  sampleCount: number;
+  deviation: number | null;
+  maxDeviation: number | null;
+  status: CalibrationStatus;
+};
+
+export type ModelCreditUsage = {
+  model: string;
+  credits: number;
+  percent: number;
+};
+
+export type DailyCreditUsage = {
+  date: string;
+  credits: number | null;
+  isPartial: boolean;
+  isPending: boolean;
+  models: ModelCreditUsage[];
+};
+
+export type CreditAggregate = {
+  credits: number | null;
+  models: ModelCreditUsage[];
+};
+
+export type ServerCreditAnalyticsResponse = {
+  fetchedAt: string;
+  startDate: string;
+  endDate: string;
+  status: ServerCreditAnalyticsStatus;
+  calibration: CalibrationSummary;
+  today: DailyCreditUsage | null;
+  last7Days: CreditAggregate;
+  last30Days: CreditAggregate;
+  daily: DailyCreditUsage[];
+  models: ModelCreditUsage[];
+};
+
+export async function fetchServerCreditAnalytics(): Promise<ServerCreditAnalyticsResponse> {
+  return invoke<ServerCreditAnalyticsResponse>("fetch_server_credit_analytics");
+}
+
 export type UsageRefreshResponse = {
   scan: ScanResponse;
   limits: CodexLimitsResponse | null;

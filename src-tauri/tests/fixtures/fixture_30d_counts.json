@@ -1,0 +1,242 @@
+[
+  {
+    "date": "2026-07-23",
+    "uncachedTextInputTokens": 600000,
+    "cachedTextInputTokens": 60000,
+    "textOutputTokens": 120000,
+    "textTotalTokens": 780000,
+    "credits": 0
+  },
+  {
+    "date": "2026-07-24",
+    "uncachedTextInputTokens": 700000,
+    "cachedTextInputTokens": 70000,
+    "textOutputTokens": 140000,
+    "textTotalTokens": 910000,
+    "credits": 0
+  },
+  {
+    "date": "2026-07-25",
+    "uncachedTextInputTokens": 800000,
+    "cachedTextInputTokens": 80000,
+    "textOutputTokens": 160000,
+    "textTotalTokens": 1040000,
+    "credits": 0
+  },
+  {
+    "date": "2026-07-26",
+    "uncachedTextInputTokens": 900000,
+    "cachedTextInputTokens": 90000,
+    "textOutputTokens": 180000,
+    "textTotalTokens": 1170000,
+    "credits": 0
+  },
+  {
+    "date": "2026-07-27",
+    "uncachedTextInputTokens": 100000,
+    "cachedTextInputTokens": 10000,
+    "textOutputTokens": 20000,
+    "textTotalTokens": 130000,
+    "credits": 0
+  },
+  {
+    "date": "2026-07-28",
+    "uncachedTextInputTokens": 200000,
+    "cachedTextInputTokens": 20000,
+    "textOutputTokens": 40000,
+    "textTotalTokens": 260000,
+    "credits": 0
+  },
+  {
+    "date": "2026-07-29",
+    "uncachedTextInputTokens": 300000,
+    "cachedTextInputTokens": 30000,
+    "textOutputTokens": 60000,
+    "textTotalTokens": 390000,
+    "credits": 0
+  },
+  {
+    "date": "2026-07-30",
+    "uncachedTextInputTokens": 400000,
+    "cachedTextInputTokens": 40000,
+    "textOutputTokens": 80000,
+    "textTotalTokens": 520000,
+    "credits": 0
+  },
+  {
+    "date": "2026-07-31",
+    "uncachedTextInputTokens": 500000,
+    "cachedTextInputTokens": 50000,
+    "textOutputTokens": 100000,
+    "textTotalTokens": 650000,
+    "credits": 0
+  },
+  {
+    "date": "2026-08-01",
+    "uncachedTextInputTokens": 200000,
+    "cachedTextInputTokens": 20000,
+    "textOutputTokens": 40000,
+    "textTotalTokens": 260000,
+    "credits": 0
+  },
+  {
+    "date": "2026-08-02",
+    "uncachedTextInputTokens": 300000,
+    "cachedTextInputTokens": 30000,
+    "textOutputTokens": 60000,
+    "textTotalTokens": 390000,
+    "credits": 0
+  },
+  {
+    "date": "2026-08-03",
+    "uncachedTextInputTokens": 400000,
+    "cachedTextInputTokens": 40000,
+    "textOutputTokens": 80000,
+    "textTotalTokens": 520000,
+    "credits": 0
+  },
+  {
+    "date": "2026-08-04",
+    "uncachedTextInputTokens": 500000,
+    "cachedTextInputTokens": 50000,
+    "textOutputTokens": 100000,
+    "textTotalTokens": 650000,
+    "credits": 0
+  },
+  {
+    "date": "2026-08-05",
+    "uncachedTextInputTokens": 600000,
+    "cachedTextInputTokens": 60000,
+    "textOutputTokens": 120000,
+    "textTotalTokens": 780000,
+    "credits": 0
+  },
+  {
+    "date": "2026-08-06",
+    "uncachedTextInputTokens": 700000,
+    "cachedTextInputTokens": 70000,
+    "textOutputTokens": 140000,
+    "textTotalTokens": 910000,
+    "credits": 0
+  },
+  {
+    "date": "2026-08-07",
+    "uncachedTextInputTokens": 800000,
+    "cachedTextInputTokens": 80000,
+    "textOutputTokens": 160000,
+    "textTotalTokens": 1040000,
+    "credits": 0
+  },
+  {
+    "date": "2026-08-08",
+    "uncachedTextInputTokens": 900000,
+    "cachedTextInputTokens": 90000,
+    "textOutputTokens": 180000,
+    "textTotalTokens": 1170000,
+    "credits": 0
+  },
+  {
+    "date": "2026-08-09",
+    "uncachedTextInputTokens": 100000,
+    "cachedTextInputTokens": 10000,
+    "textOutputTokens": 20000,
+    "textTotalTokens": 130000,
+    "credits": 0
+  },
+  {
+    "date": "2026-08-10",
+    "uncachedTextInputTokens": 200000,
+    "cachedTextInputTokens": 20000,
+    "textOutputTokens": 40000,
+    "textTotalTokens": 260000,
+    "credits": 0
+  },
+  {
+    "date": "2026-08-11",
+    "uncachedTextInputTokens": 300000,
+    "cachedTextInputTokens": 30000,
+    "textOutputTokens": 60000,
+    "textTotalTokens": 390000,
+    "credits": 0
+  },
+  {
+    "date": "2026-08-12",
+    "uncachedTextInputTokens": 400000,
+    "cachedTextInputTokens": 40000,
+    "textOutputTokens": 80000,
+    "textTotalTokens": 520000,
+    "credits": 0
+  },
+  {
+    "date": "2026-08-13",
+    "uncachedTextInputTokens": 500000,
+    "cachedTextInputTokens": 50000,
+    "textOutputTokens": 100000,
+    "textTotalTokens": 650000,
+    "credits": 0
+  },
+  {
+    "date": "2026-08-14",
+    "uncachedTextInputTokens": 600000,
+    "cachedTextInputTokens": 60000,
+    "textOutputTokens": 120000,
+    "textTotalTokens": 780000,
+    "credits": 0
+  },
+  {
+    "date": "2026-08-15",
+    "uncachedTextInputTokens": 700000,
+    "cachedTextInputTokens": 70000,
+    "textOutputTokens": 140000,
+    "textTotalTokens": 910000,
+    "credits": 0
+  },
+  {
+    "date": "2026-08-16",
+    "uncachedTextInputTokens": 800000,
+    "cachedTextInputTokens": 80000,
+    "textOutputTokens": 160000,
+    "textTotalTokens": 1040000,
+    "credits": 0
+  },
+  {
+    "date": "2026-08-17",
+    "uncachedTextInputTokens": 900000,
+    "cachedTextInputTokens": 90000,
+    "textOutputTokens": 180000,
+    "textTotalTokens": 1170000,
+    "credits": 0
+  },
+  {
+    "date": "2026-08-18",
+    "uncachedTextInputTokens": 100000,
+    "cachedTextInputTokens": 10000,
+    "textOutputTokens": 20000,
+    "textTotalTokens": 130000,
+    "credits": 0
+  },
+  {
+    "date": "2026-08-19",
+    "uncachedTextInputTokens": 200000,
+    "cachedTextInputTokens": 20000,
+    "textOutputTokens": 40000,
+    "textTotalTokens": 260000,
+    "credits": 0
+  },
+  {
+    "date": "2026-08-20",
+    "uncachedTextInputTokens": 300000,
+    "cachedTextInputTokens": 30000,
+    "textOutputTokens": 60000,
+    "textTotalTokens": 390000,
+    "credits": 0
+  },
+  {
+    "date": "2026-08-21",
+    "uncachedTextInputTokens": 400000,
+    "cachedTextInputTokens": 40000,
+    "textOutputTokens": 80000,
+    "textTotalTokens": 520000,
+    "credits": 0
+  }
+]

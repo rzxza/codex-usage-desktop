@@ -1,0 +1,326 @@
+[
+  {
+    "date": "2026-07-23",
+    "units": "percent",
+    "models": [
+      {
+        "model": "gpt-5.6-sol",
+        "speed": "standard",
+        "credits": 49.725
+      }
+    ]
+  },
+  {
+    "date": "2026-07-24",
+    "units": "percent",
+    "models": [
+      {
+        "model": "gpt-5.6-luna",
+        "speed": "standard",
+        "credits": 2.3205
+      }
+    ]
+  },
+  {
+    "date": "2026-07-25",
+    "units": "percent",
+    "models": [
+      {
+        "model": "gpt-5.6-terra",
+        "speed": "standard",
+        "credits": 26.52
+      }
+    ]
+  },
+  {
+    "date": "2026-07-26",
+    "units": "percent",
+    "models": [
+      {
+        "model": "gpt-5.6-sol",
+        "speed": "standard",
+        "credits": 74.5875
+      }
+    ]
+  },
+  {
+    "date": "2026-07-27",
+    "units": "percent",
+    "models": [
+      {
+        "model": "gpt-5.6-luna",
+        "speed": "standard",
+        "credits": 0.3315
+      }
+    ]
+  },
+  {
+    "date": "2026-07-28",
+    "units": "percent",
+    "models": [
+      {
+        "model": "gpt-5.6-terra",
+        "speed": "standard",
+        "credits": 6.63
+      }
+    ]
+  },
+  {
+    "date": "2026-07-29",
+    "units": "percent",
+    "models": [
+      {
+        "model": "gpt-5.6-sol",
+        "speed": "standard",
+        "credits": 24.8625
+      }
+    ]
+  },
+  {
+    "date": "2026-07-30",
+    "units": "percent",
+    "models": [
+      {
+        "model": "gpt-5.6-luna",
+        "speed": "standard",
+        "credits": 1.326
+      }
+    ]
+  },
+  {
+    "date": "2026-07-31",
+    "units": "percent",
+    "models": [
+      {
+        "model": "gpt-5.6-terra",
+        "speed": "standard",
+        "credits": 16.575
+      }
+    ]
+  },
+  {
+    "date": "2026-08-01",
+    "units": "percent",
+    "models": [
+      {
+        "model": "gpt-5.6-terra",
+        "speed": "standard",
+        "credits": 6.63
+      }
+    ]
+  },
+  {
+    "date": "2026-08-02",
+    "units": "percent",
+    "models": [
+      {
+        "model": "gpt-5.6-sol",
+        "speed": "standard",
+        "credits": 24.8625
+      }
+    ]
+  },
+  {
+    "date": "2026-08-03",
+    "units": "percent",
+    "models": [
+      {
+        "model": "gpt-5.6-luna",
+        "speed": "standard",
+        "credits": 1.326
+      }
+    ]
+  },
+  {
+    "date": "2026-08-04",
+    "units": "percent",
+    "models": [
+      {
+        "model": "gpt-5.6-terra",
+        "speed": "standard",
+        "credits": 16.575
+      }
+    ]
+  },
+  {
+    "date": "2026-08-05",
+    "units": "percent",
+    "models": [
+      {
+        "model": "gpt-5.6-sol",
+        "speed": "standard",
+        "credits": 49.725
+      }
+    ]
+  },
+  {
+    "date": "2026-08-06",
+    "units": "percent",
+    "models": [
+      {
+        "model": "gpt-5.6-luna",
+        "speed": "standard",
+        "credits": 2.3205
+      }
+    ]
+  },
+  {
+    "date": "2026-08-07",
+    "units": "percent",
+    "models": [
+      {
+        "model": "gpt-5.6-terra",
+        "speed": "standard",
+        "credits": 26.52
+      }
+    ]
+  },
+  {
+    "date": "2026-08-08",
+    "units": "percent",
+    "models": [
+      {
+        "model": "gpt-5.6-sol",
+        "speed": "standard",
+        "credits": 74.5875
+      }
+    ]
+  },
+  {
+    "date": "2026-08-09",
+    "units": "percent",
+    "models": [
+      {
+        "model": "gpt-5.6-luna",
+        "speed": "standard",
+        "credits": 0.3315
+      }
+    ]
+  },
+  {
+    "date": "2026-08-10",
+    "units": "percent",
+    "models": [
+      {
+        "model": "gpt-5.6-terra",
+        "speed": "standard",
+        "credits": 6.63
+      }
+    ]
+  },
+  {
+    "date": "2026-08-11",
+    "units": "percent",
+    "models": [
+      {
+        "model": "gpt-5.6-sol",
+        "speed": "standard",
+        "credits": 24.8625
+      }
+    ]
+  },
+  {
+    "date": "2026-08-12",
+    "units": "percent",
+    "models": [
+      {
+        "model": "gpt-5.6-luna",
+        "speed": "standard",
+        "credits": 1.326
+      }
+    ]
+  },
+  {
+    "date": "2026-08-13",
+    "units": "percent",
+    "models": [
+      {
+        "model": "gpt-5.6-terra",
+        "speed": "standard",
+        "credits": 16.575
+      }
+    ]
+  },
+  {
+    "date": "2026-08-14",
+    "units": "percent",
+    "models": [
+      {
+        "model": "gpt-5.6-sol",
+        "speed": "standard",
+        "credits": 49.725
+      }
+    ]
+  },
+  {
+    "date": "2026-08-15",
+    "units": "percent",
+    "models": [
+      {
+        "model": "gpt-5.6-luna",
+        "speed": "standard",
+        "credits": 2.3205
+      }
+    ]
+  },
+  {
+    "date": "2026-08-16",
+    "units": "percent",
+    "models": [
+      {
+        "model": "gpt-5.6-terra",
+        "speed": "standard",
+        "credits": 26.52
+      }
+    ]
+  },
+  {
+    "date": "2026-08-17",
+    "units": "percent",
+    "models": [
+      {
+        "model": "gpt-5.6-sol",
+        "speed": "standard",
+        "credits": 74.5875
+      }
+    ]
+  },
+  {
+    "date": "2026-08-18",
+    "units": "percent",
+    "models": [
+      {
+        "model": "gpt-5.6-luna",
+        "speed": "standard",
+        "credits": 0.3315
+      }
+    ]
+  },
+  {
+    "date": "2026-08-19",
+    "units": "percent",
+    "models": [
+      {
+        "model": "gpt-5.6-terra",
+        "speed": "standard",
+        "credits": 6.63
+      }
+    ]
+  },
+  {
+    "date": "2026-08-20",
+    "units": "percent",
+    "models": [
+      {
+        "model": "gpt-5.6-sol",
+        "speed": "standard",
+        "credits": 24.8625
+      }
+    ]
+  },
+  {
+    "date": "2026-08-21",
+    "units": "percent",
+    "models": []
+  }
+]

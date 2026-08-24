@@ -1,11 +1,14 @@
 mod codex_environment;
 mod codex_limits;
+mod credit_analytics;
+mod credit_rates;
 mod date;
 mod db;
 mod exporter;
 mod overview;
 mod pricing;
 mod scanner;
+mod server_analytics;
 mod session_index;
 mod session_replay;
 mod types;
@@ -24,8 +27,8 @@ use tauri_plugin_updater::UpdaterExt;
 use types::{
     CodexLimitsResponse, CodexQuotaForecastResponse, ExportResponse, ModelPricingCatalogResponse,
     MonthlyUsageResponse, OverviewResponse, ProjectAnalyticsResponse, ScanResponse,
-    SessionDetailRow, SessionReplayDetail, UpdateCheckResponse, UpdateDownloadProgress,
-    UpdateInstallResponse, UsageRefreshResponse,
+    ServerCreditAnalyticsResponse, SessionDetailRow, SessionReplayDetail, UpdateCheckResponse,
+    UpdateDownloadProgress, UpdateInstallResponse, UsageRefreshResponse,
 };
 
 const BACKGROUND_RESCAN_INTERVAL: Duration = Duration::from_secs(5 * 60);
@@ -203,6 +206,13 @@ async fn fetch_codex_limits() -> Result<CodexLimitsResponse, String> {
 #[tauri::command]
 async fn fetch_codex_quota_forecast() -> Result<CodexQuotaForecastResponse, String> {
     tauri::async_runtime::spawn_blocking(codex_limits::fetch_codex_quota_forecast)
+        .await
+        .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+async fn fetch_server_credit_analytics() -> Result<ServerCreditAnalyticsResponse, String> {
+    tauri::async_runtime::spawn_blocking(server_analytics::fetch_server_credit_analytics)
         .await
         .map_err(|error| error.to_string())?
 }
@@ -823,6 +833,7 @@ pub fn run() {
             fetch_monthly_usage,
             fetch_codex_limits,
             fetch_codex_quota_forecast,
+            fetch_server_credit_analytics,
             reset_usage_state,
             export_usage,
             check_for_updates,
