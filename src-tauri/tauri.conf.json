@@ -48,7 +48,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEJDMjlFQThGNDU1RDNBMzMKUldRek9sMUZqK29wdk83KzNIeUVwMEsxaDJXQjRRTkJQUlBOa0QvbWh6UEUybzVaNzZhaHE1MlMK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDYzQzYxQUYwQzc1MkNGQjAKUldTd3oxTEg4QnJHWTU5UWJJWkN4YXlKRGVTc2w5TFQ2cWE4SWlFR3RGaW1uL1dZZTJWUXVSUnAK",
       "endpoints": [
         "https://github.com/itvincent-git/codex-usage-desktop/releases/latest/download/latest.json"
       ]
