@@ -15,6 +15,18 @@ import { cn } from "@/lib/utils";
 
 const LIMITS_REFRESH_MS = 60_000;
 const ANALYTICS_REFRESH_MS = 5 * 60_000;
+// A feed that has not succeeded for this long is flagged stale; the last good
+// values stay on screen (design doc v0.2 section 4).
+const STALE_AFTER_MS = 15 * 60_000;
+
+type FeedFreshness = "live" | "stale" | "offline";
+
+function feedFreshness(error: string | null, updatedAt: number | null, now: number): FeedFreshness {
+  if (updatedAt !== null) {
+    return now - updatedAt > STALE_AFTER_MS ? "stale" : "live";
+  }
+  return error ? "offline" : "live";
+}
 
 function useNow(intervalMs = 1000) {
   const [now, setNow] = useState(() => Date.now());
@@ -158,6 +170,29 @@ export function CompactMonitor() {
         <span className="text-xs font-semibold tracking-wide" data-tauri-drag-region>
           {t("compact.title")}
         </span>
+        {(() => {
+          const quotaState = feedFreshness(limitsError, limitsUpdatedAt, now);
+          const analyticsState = feedFreshness(analyticsError, analyticsUpdatedAt, now);
+          const overall =
+            quotaState === "offline" && analyticsState === "offline"
+              ? "offline"
+              : quotaState === "stale" || analyticsState === "stale"
+                ? "stale"
+                : "live";
+          return (
+            <span
+              className={cn(
+                "ml-1 inline-flex items-center gap-1 rounded-full border px-1.5 py-px text-[9px] font-bold uppercase tracking-wider",
+                overall === "live" && "border-success/30 bg-success/10 text-success",
+                overall === "stale" && "border-warning/30 bg-warning/10 text-warning",
+                overall === "offline" && "border-error/30 bg-error/10 text-error",
+              )}
+            >
+              <span className={cn("h-1.5 w-1.5 rounded-full bg-current", overall === "live" && isRefreshing && "animate-pulse")} />
+              {t(`compact.${overall}`)}
+            </span>
+          );
+        })()}
         {error ? (
           <span className="ml-2 truncate text-[10px] text-warning" title={error}>
             {t("compact.error_short")}
@@ -218,7 +253,9 @@ export function CompactMonitor() {
             <p className="mt-1 font-mono text-lg font-bold tabular-nums">
               {formatCreditValue(today?.credits)}
             </p>
-            {today?.isPending ? (
+            {analyticsError && !analytics ? (
+              <p className="mt-0.5 text-[10px] text-warning">{t("compact.unavailable")}</p>
+            ) : today?.isPending ? (
               <p className="mt-0.5 text-[10px] text-warning">{t("compact.pending")}</p>
             ) : today?.isPartial ? (
               <p className="mt-0.5 text-[10px] text-muted-foreground">{t("compact.partial")}</p>
@@ -232,7 +269,13 @@ export function CompactMonitor() {
               {formatCreditValue(analytics?.last7Days.credits)}
             </p>
             <p className="mt-0.5 text-[10px] text-muted-foreground">
-              {analytics?.status === "invalid" ? t("compact.calibration_invalid") : " "}
+              {analyticsError && !analytics
+                ? t("compact.unavailable")
+                : analytics?.status === "invalid"
+                  ? t("compact.calibration_invalid")
+                  : today?.isPending
+                    ? t("compact.pending")
+                    : " "}
             </p>
           </div>
         </div>

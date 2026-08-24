@@ -146,6 +146,41 @@ describe("CompactMonitor", () => {
     expect(invokeHandlers.analytics.mock.calls.length).toBe(analyticsBaseline + 1);
   });
 
+  it("keeps last good analytics values when a refresh fails", async () => {
+    // Fake everything (incl. Date) from birth so all intervals are virtual.
+    vi.useFakeTimers({ now: new Date(), toFake: ["Date", "setInterval", "setTimeout", "clearInterval", "clearTimeout"] });
+    render(<CompactMonitor />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(screen.getByText("≈707")).toBeInTheDocument();
+
+    // Next scheduled analytics refreshes fail; UI must keep the last good data
+    // and flip the freshness pill to STALE once 15 minutes pass without success.
+    invokeHandlers.analytics.mockRejectedValue(new Error("boom"));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(16 * 60_000);
+    });
+    // Under fake timers waitFor itself would freeze; assert synchronously.
+    expect(document.body.textContent).toMatch(/STALE/i);
+    expect(document.body.textContent).toContain("≈707");
+  });
+
+  it("quota failure does not hide analytics data", async () => {
+    invokeHandlers.limits.mockRejectedValue(new Error("limits down"));
+    render(<CompactMonitor />);
+    await screen.findAllByText(/≈/);
+    expect(screen.getByText("≈707")).toBeInTheDocument();
+    expect(screen.getByText("≈10,571")).toBeInTheDocument();
+  });
+
+  it("analytics failure does not hide quota data", async () => {
+    invokeHandlers.analytics.mockRejectedValue(new Error("analytics down"));
+    render(<CompactMonitor />);
+    await screen.findByText(/68%/);
+    expect(screen.getByText(/43%/)).toBeInTheDocument();
+  });
+
   it("manual refresh refetches both endpoints", async () => {
     vi.useFakeTimers();
     const { container } = render(<CompactMonitor />);
