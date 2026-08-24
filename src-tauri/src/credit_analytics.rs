@@ -207,16 +207,6 @@ fn compute_k_day(
     Some(base_credits(counts_day) / weighted)
 }
 
-fn weighted_percent_sum(models: &[TokenUsageBreakdownModel]) -> f64 {
-    models
-        .iter()
-        .filter_map(|model| {
-            credit_rates::lookup_model_rate(&model.model)
-                .map(|rate| model.credits / f64::from(rate.base_multiplier))
-        })
-        .sum()
-}
-
 fn weighted_percent_sum_known(models: &[&TokenUsageBreakdownModel]) -> f64 {
     models
         .iter()
