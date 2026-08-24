@@ -172,6 +172,50 @@ mod tests {
     }
 
     #[test]
+    fn rate_table_has_unique_model_speed_ranges() {
+        let mut seen = std::collections::BTreeSet::new();
+        for entry in &MODEL_RATE_TABLE {
+            assert!(
+                seen.insert((entry.model, entry.speed, entry.effective_date)),
+                "duplicate rate range for {} / {} @ {}",
+                entry.model,
+                entry.speed,
+                entry.effective_date
+            );
+        }
+        assert_eq!(seen.len(), MODEL_RATE_TABLE.len());
+    }
+
+    #[test]
+    fn rate_multiplier_matches_rate_vectors() {
+        let luna = &MODEL_RATE_TABLE[2];
+        for entry in &MODEL_RATE_TABLE {
+            let multiplier = f64::from(entry.base_multiplier);
+            let ratio = entry.input_per_million_tokens / luna.input_per_million_tokens;
+            assert!(
+                (ratio - multiplier).abs() < 1e-9,
+                "{} input ratio {} does not match multiplier {}",
+                entry.model,
+                ratio,
+                multiplier
+            );
+            let cached_ratio =
+                entry.cached_input_per_million_tokens / luna.cached_input_per_million_tokens;
+            assert!((cached_ratio - multiplier).abs() < 1e-9);
+            let output_ratio = entry.output_per_million_tokens / luna.output_per_million_tokens;
+            assert!((output_ratio - multiplier).abs() < 1e-9);
+        }
+    }
+
+    #[test]
+    fn unsupported_model_is_rejected() {
+        assert!(lookup_model_rate("gpt-5.5").is_none());
+        assert!(!is_supported_rate_model("gpt-5.5"));
+        assert!(lookup_model_rate("").is_none());
+        assert!(!is_supported_rate_model("gpt-5.6-sol-fast"));
+    }
+
+    #[test]
     fn standard_speed_is_exact() {
         assert!(is_standard_speed("standard"));
         assert!(!is_standard_speed("fast"));

@@ -70,6 +70,40 @@ export function CompactMonitor() {
 
   useEffect(() => {
     const current = getCurrentWindow();
+
+    // Apply persisted compact preferences (settings page writes these flags).
+    const autoStart = (() => {
+      try {
+        return localStorage.getItem("compact_autostart") === "1";
+      } catch (_) {
+        return false;
+      }
+    })();
+    const alwaysOnTop = (() => {
+      try {
+        return localStorage.getItem("compact_always_on_top") !== "0";
+      } catch (_) {
+        return true;
+      }
+    })();
+    if (!alwaysOnTop) void current.setAlwaysOnTop(false);
+    if (autoStart) void current.show();
+
+    let disposed = false;
+    let unlistenSettings: (() => void) | null = null;
+    void import("@tauri-apps/api/event").then(({ listen }) =>
+      listen("compact-settings-changed", () => {
+        try {
+          void current.setAlwaysOnTop(localStorage.getItem("compact_always_on_top") !== "0");
+        } catch (_) {
+          // Ignore storage errors.
+        }
+      }),
+    ).then((cleanup) => {
+      if (disposed) cleanup();
+      else unlistenSettings = cleanup;
+    });
+
     const saved = localStorage.getItem("compact_window_position");
     if (saved) {
       void (async () => {
@@ -100,10 +134,13 @@ export function CompactMonitor() {
         // Ignore storage errors.
       }
     }).then((cleanup) => {
-      unlisten = cleanup;
+      if (disposed) cleanup();
+      else unlisten = cleanup;
     });
     return () => {
+      disposed = true;
       unlisten?.();
+      unlistenSettings?.();
     };
   }, []);
 

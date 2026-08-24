@@ -537,7 +537,19 @@ pub struct CreditAggregate {
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
+pub struct CalibrationDiagnostics {
+    pub eligible_days: usize,
+    pub excluded_days: usize,
+    pub unsupported_models: Vec<String>,
+    pub unsupported_speeds: Vec<String>,
+    pub units: String,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct ServerCreditAnalyticsResponse {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub diagnostics: Option<CalibrationDiagnostics>,
     pub fetched_at: String,
     pub start_date: String,
     pub end_date: String,

@@ -177,7 +177,16 @@ export type CreditAggregate = {
   models: ModelCreditUsage[];
 };
 
+export type CalibrationDiagnostics = {
+  eligibleDays: number;
+  excludedDays: number;
+  unsupportedModels: string[];
+  unsupportedSpeeds: string[];
+  units: string;
+};
+
 export type ServerCreditAnalyticsResponse = {
+  diagnostics?: CalibrationDiagnostics;
   fetchedAt: string;
   startDate: string;
   endDate: string;

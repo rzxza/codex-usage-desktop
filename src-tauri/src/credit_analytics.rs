@@ -2,8 +2,9 @@ use crate::{
     credit_rates,
     server_analytics::{TokenUsageBreakdownDay, TokenUsageBreakdownModel, WorkspaceUsageCountsDay},
     types::{
-        CalibrationStatus, CalibrationSummary, CreditAggregate, DailyCreditUsage, ModelCreditUsage,
-        ServerCreditAnalyticsResponse, ServerCreditAnalyticsStatus,
+        CalibrationDiagnostics, CalibrationStatus, CalibrationSummary, CreditAggregate,
+        DailyCreditUsage, ModelCreditUsage, ServerCreditAnalyticsResponse,
+        ServerCreditAnalyticsStatus,
     },
 };
 use std::cmp::Ordering;
@@ -35,19 +36,37 @@ pub fn build_server_credit_analytics(
     all_dates.extend(breakdowns_by_date.keys().cloned());
 
     let mut k_values = Vec::new();
+    let mut eligible_days = 0usize;
+    let mut excluded_days = 0usize;
+    let mut unsupported_models_seen: BTreeSet<String> = BTreeSet::new();
+    let mut unsupported_speeds_seen: BTreeSet<String> = BTreeSet::new();
+    let mut units_seen: Option<String> = None;
     for date in &all_dates {
         let counts_day = counts_by_date.get(date);
         let breakdown_day = breakdowns_by_date.get(date);
         if let (Some(counts_day), Some(breakdown_day)) = (counts_day, breakdown_day) {
+            if units_seen.is_none() {
+                units_seen = Some(breakdown_day.units.clone());
+            }
+            for model in &breakdown_day.models {
+                if !credit_rates::is_supported_rate_model(&model.model) {
+                    unsupported_models_seen.insert(model.model.clone());
+                } else if !credit_rates::is_standard_speed(&model.speed) {
+                    unsupported_speeds_seen.insert(model.speed.clone());
+                }
+            }
             if is_eligible_for_calibration(
                 date,
                 today,
                 token_total(counts_day),
                 Some(breakdown_day),
             ) {
+                eligible_days += 1;
                 if let Some(k_day) = compute_k_day(counts_day, breakdown_day) {
                     k_values.push(k_day);
                 }
+            } else {
+                excluded_days += 1;
             }
         }
     }
@@ -106,8 +125,17 @@ pub fn build_server_credit_analytics(
 
     let models = aggregate_credits(&daily, &all_dates_vec).models;
 
+    let diagnostics = CalibrationDiagnostics {
+        eligible_days,
+        excluded_days,
+        unsupported_models: unsupported_models_seen.into_iter().collect(),
+        unsupported_speeds: unsupported_speeds_seen.into_iter().collect(),
+        units: units_seen.unwrap_or_default(),
+    };
+
     ServerCreditAnalyticsResponse {
         fetched_at: chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+        diagnostics: Some(diagnostics),
         start_date: start_date.to_string(),
         end_date: end_date.to_string(),
         status: top_status,
@@ -773,6 +801,11 @@ mod tests {
             .unwrap();
         assert_eq!(zero_day.credits, Some(0.0));
         assert_eq!(response.calibration.sample_count, 3);
+        let diag = response.diagnostics.expect("diagnostics attached");
+        assert_eq!(diag.eligible_days, 3);
+        assert_eq!(diag.excluded_days, 1); // the zero-usage day
+        assert!(diag.unsupported_models.is_empty());
+        assert_eq!(diag.units, "percent");
     }
 
     #[test]

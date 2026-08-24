@@ -640,7 +640,13 @@
     "menu_bar_opt_cost": "今日预估成本",
     "menu_bar_show_main": "显示主窗口",
     "menu_bar_quit": "退出",
-    "reset_confirm": "重置缓存的使用和价格数据，并从本地 Codex 日志中重新构建？源日志文件不会被删除。"
+    "reset_confirm": "重置缓存的使用和价格数据，并从本地 Codex 日志中重新构建？源日志文件不会被删除。",
+    "compact_title": "紧凑监视器",
+    "compact_desc": "常驻小窗口的行为设置。",
+    "compact_autostart": "启动时显示",
+    "compact_autostart_desc": "应用启动时自动打开紧凑监视器。",
+    "compact_always_on_top": "总是置顶",
+    "compact_always_on_top_desc": "让紧凑监视器始终保持在其他窗口之上。"
   },
   "logs": {
     "title": "实时系统日志",

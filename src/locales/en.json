@@ -635,7 +635,13 @@
     "menu_bar_opt_cost": "Today's Cost",
     "menu_bar_show_main": "Show Main Window",
     "menu_bar_quit": "Quit",
-    "reset_confirm": "Reset cached usage and pricing data, then rebuild it from local Codex logs? Source logs will not be deleted."
+    "reset_confirm": "Reset cached usage and pricing data, then rebuild it from local Codex logs? Source logs will not be deleted.",
+    "compact_title": "Compact Monitor",
+    "compact_desc": "Behavior of the always-available mini window.",
+    "compact_autostart": "Show on app launch",
+    "compact_autostart_desc": "Open the compact monitor automatically when the app starts.",
+    "compact_always_on_top": "Always on top",
+    "compact_always_on_top_desc": "Keep the compact monitor above other windows."
   },
   "logs": {
     "title": "Real-Time System Logs",

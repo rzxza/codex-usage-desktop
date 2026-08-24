@@ -747,6 +747,14 @@ pub fn run() {
 
             setup_app_menu(app)?;
 
+            // Autostart launches with `--hidden`; keep the main window out of
+            // the way in that case (tray/compact remain available).
+            if std::env::args().any(|arg| arg == "--hidden") {
+                if let Some(main_window) = app.get_webview_window("main") {
+                    let _ = main_window.hide();
+                }
+            }
+
             let app_data_dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&app_data_dir)?;
             let database_path = app_data_dir.join("codex-usage-desktop.db");
