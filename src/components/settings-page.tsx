@@ -403,7 +403,7 @@ export function SettingsPage({
                   variant="secondary" 
                   size="lg" 
                   onClick={onCheckUpdates} 
-                  disabled={isDisabled || isUpdateChecking}
+                  disabled={isDisabled || isUpdateChecking || !UPDATES_ENABLED}
                 >
                   <RefreshCw className={`h-4 w-4 ${isUpdateChecking ? "animate-spin" : ""}`} />
                   {isUpdateChecking ? t("settings.btn_checking") : t("settings.btn_check_updates")}

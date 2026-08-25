@@ -185,6 +185,26 @@ export type CalibrationDiagnostics = {
   units: string;
 };
 
+export type CreditWindowCompleteness = {
+  expectedDays: number;
+  completeDays: number;
+  missingDates: string[];
+  isComplete: boolean;
+};
+
+export type CompleteCreditWindow = {
+  startDate: string;
+  endDate: string;
+  credits: number | null;
+  models: ModelCreditUsage[];
+  completeness: CreditWindowCompleteness;
+};
+
+export type SevenDayCreditPoint = {
+  date: string;
+  credits: number;
+};
+
 export type ServerCreditAnalyticsResponse = {
   diagnostics?: CalibrationDiagnostics;
   fetchedAt: string;
@@ -192,6 +212,13 @@ export type ServerCreditAnalyticsResponse = {
   endDate: string;
   status: ServerCreditAnalyticsStatus;
   calibration: CalibrationSummary;
+  latestCompleteDate: string | null;
+  latestCompleteDay: DailyCreditUsage | null;
+  last7CompleteDays: CompleteCreditWindow;
+  previous7CompleteDays: CompleteCreditWindow;
+  last30CompleteDays: CompleteCreditWindow;
+  sevenDayDeltaPercent: number | null;
+  sevenDaySeries: SevenDayCreditPoint[];
   today: DailyCreditUsage | null;
   last7Days: CreditAggregate;
   last30Days: CreditAggregate;
@@ -199,8 +226,10 @@ export type ServerCreditAnalyticsResponse = {
   models: ModelCreditUsage[];
 };
 
-export async function fetchServerCreditAnalytics(): Promise<ServerCreditAnalyticsResponse> {
-  return invoke<ServerCreditAnalyticsResponse>("fetch_server_credit_analytics");
+export async function fetchServerCreditAnalytics(
+  forceRefresh = false,
+): Promise<ServerCreditAnalyticsResponse> {
+  return invoke<ServerCreditAnalyticsResponse>("fetch_server_credit_analytics", { forceRefresh });
 }
 
 export type UsageRefreshResponse = {

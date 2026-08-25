@@ -696,7 +696,12 @@
     "pending": "Sync pending",
     "partial": "Partial / analytics delayed",
     "stale_banner": "Last refresh failed - showing the most recent successful data.",
-    "refreshing": "Refreshing…"
+    "refreshing": "Refreshing…",
+    "latest_complete_day": "Latest complete day",
+    "last_7_complete": "Last 7 complete days",
+    "last_30_complete": "Last 30 complete days",
+    "incomplete": "Data incomplete",
+    "latest_complete_date": "Latest complete"
   },
   "compact": {
     "analytics_updated": "Analytics",
@@ -704,7 +709,7 @@
     "error_short": "Sync error",
     "five_hour": "5h",
     "live": "LIVE",
-    "model_split": "Today's model split",
+    "model_split": "Models",
     "na": "N/A",
     "offline": "OFFLINE",
     "open_dashboard": "Open Dashboard",
@@ -721,6 +726,18 @@
     "unavailable": "Unavailable",
     "weekly": "Weekly",
     "loading": "SYNCING",
-    "degraded": "DEGRADED"
+    "degraded": "DEGRADED",
+    "current_quota": "Current quota",
+    "reset_cards": "Reset card ×{{count}}",
+    "latest_complete_day": "Latest day",
+    "last7_complete": "7 complete",
+    "last30_complete": "30 complete",
+    "seven_day_trend": "7-day trend",
+    "calibration_short": "Cal",
+    "samples_short": " samples",
+    "drag": "Drag",
+    "hide": "Hide",
+    "opacity": "Opacity",
+    "incomplete": "Incomplete"
   }
 }

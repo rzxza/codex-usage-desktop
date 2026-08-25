@@ -17,6 +17,76 @@ const analytics: ServerCreditAnalyticsResponse = {
     maxDeviation: 0.2,
     status: "excellent",
   },
+  latestCompleteDate: "2026-08-20",
+  latestCompleteDay: {
+    date: "2026-08-20",
+    credits: 1820,
+    isPartial: false,
+    isPending: false,
+    models: [
+      { model: "gpt-5.6-sol", credits: 1000, percent: 54.9 },
+      { model: "gpt-5.6-luna", credits: 500, percent: 27.5 },
+      { model: "gpt-5.6-terra", credits: 320, percent: 17.6 },
+    ],
+  },
+  last7CompleteDays: {
+    startDate: "2026-08-14",
+    endDate: "2026-08-20",
+    credits: 15300,
+    models: [
+      { model: "gpt-5.6-sol", credits: 8000, percent: 52.3 },
+      { model: "gpt-5.6-luna", credits: 4300, percent: 28.1 },
+      { model: "gpt-5.6-terra", credits: 3000, percent: 19.6 },
+    ],
+    completeness: {
+      expectedDays: 7,
+      completeDays: 7,
+      missingDates: [],
+      isComplete: true,
+    },
+  },
+  previous7CompleteDays: {
+    startDate: "2026-08-07",
+    endDate: "2026-08-13",
+    credits: 12000,
+    models: [
+      { model: "gpt-5.6-sol", credits: 6000, percent: 50 },
+      { model: "gpt-5.6-luna", credits: 4000, percent: 33.3 },
+      { model: "gpt-5.6-terra", credits: 2000, percent: 16.7 },
+    ],
+    completeness: {
+      expectedDays: 7,
+      completeDays: 7,
+      missingDates: [],
+      isComplete: true,
+    },
+  },
+  last30CompleteDays: {
+    startDate: "2026-07-22",
+    endDate: "2026-08-20",
+    credits: 42770,
+    models: [
+      { model: "gpt-5.6-sol", credits: 22000, percent: 51.4 },
+      { model: "gpt-5.6-luna", credits: 12770, percent: 29.9 },
+      { model: "gpt-5.6-terra", credits: 8000, percent: 18.7 },
+    ],
+    completeness: {
+      expectedDays: 30,
+      completeDays: 30,
+      missingDates: [],
+      isComplete: true,
+    },
+  },
+  sevenDayDeltaPercent: 27.5,
+  sevenDaySeries: [
+    { date: "2026-08-14", credits: 1200 },
+    { date: "2026-08-15", credits: 1800 },
+    { date: "2026-08-16", credits: 2100 },
+    { date: "2026-08-17", credits: 1900 },
+    { date: "2026-08-18", credits: 2600 },
+    { date: "2026-08-19", credits: 2800 },
+    { date: "2026-08-20", credits: 2900 },
+  ],
   today: {
     date: "2026-08-21",
     credits: 1820,
@@ -61,9 +131,9 @@ describe("ServerUsageCard", () => {
     render(<ServerUsageCard analytics={analytics} error={null} />);
 
     expect(screen.getByText("Server Usage")).toBeInTheDocument();
-    expect(screen.getByText("Today")).toBeInTheDocument();
-    expect(screen.getByText("Last 7 days")).toBeInTheDocument();
-    expect(screen.getByText("Last 30 days")).toBeInTheDocument();
+    expect(screen.getByText("Latest complete day")).toBeInTheDocument();
+    expect(screen.getByText("Last 7 complete days")).toBeInTheDocument();
+    expect(screen.getByText("Last 30 complete days")).toBeInTheDocument();
     expect(screen.getByText(/1,820/)).toBeInTheDocument();
     expect(screen.getByText(/15,300/)).toBeInTheDocument();
     expect(screen.getByText(/42,770/)).toBeInTheDocument();
@@ -76,11 +146,11 @@ describe("ServerUsageCard", () => {
     expect(screen.getByText("boom")).toBeInTheDocument();
   });
 
-  it("shows the partial badge while today is still syncing", () => {
+  it("does not show a partial badge when a complete day is available", () => {
     render(<ServerUsageCard analytics={analytics} error={null} />);
-    expect(screen.getByText("Partial / analytics delayed")).toBeInTheDocument();
-    // Derived-credit disclaimer stays visible next to the numbers.
+    expect(screen.queryByText("Partial / analytics delayed")).not.toBeInTheDocument();
     expect(screen.getByText("Derived Credits")).toBeInTheDocument();
+    expect(screen.getAllByText("2026-08-20").length).toBeGreaterThan(0);
   });
 
   it("keeps values on screen with a stale banner when refresh fails", () => {
@@ -103,6 +173,31 @@ describe("ServerUsageCard", () => {
             maxDeviation: null,
             status: "invalid",
           },
+          latestCompleteDate: null,
+          latestCompleteDay: null,
+          last7CompleteDays: {
+            startDate: "2026-08-14",
+            endDate: "2026-08-20",
+            credits: null,
+            models: [],
+            completeness: { expectedDays: 7, completeDays: 0, missingDates: [], isComplete: false },
+          },
+          previous7CompleteDays: {
+            startDate: "2026-08-07",
+            endDate: "2026-08-13",
+            credits: null,
+            models: [],
+            completeness: { expectedDays: 7, completeDays: 0, missingDates: [], isComplete: false },
+          },
+          last30CompleteDays: {
+            startDate: "2026-07-22",
+            endDate: "2026-08-20",
+            credits: null,
+            models: [],
+            completeness: { expectedDays: 30, completeDays: 0, missingDates: [], isComplete: false },
+          },
+          sevenDayDeltaPercent: null,
+          sevenDaySeries: [],
           today: { ...analytics.today!, credits: null, isPartial: false, isPending: false, models: [] },
           last7Days: { credits: null, models: [] },
           last30Days: { credits: null, models: [] },

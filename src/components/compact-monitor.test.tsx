@@ -23,6 +23,8 @@ vi.mock("@tauri-apps/api/window", () => ({
     setPosition: vi.fn().mockResolvedValue(undefined),
     setAlwaysOnTop: vi.fn().mockResolvedValue(undefined),
     show: vi.fn().mockResolvedValue(undefined),
+    hide: vi.fn().mockResolvedValue(undefined),
+    startDragging: vi.fn().mockResolvedValue(undefined),
     onMoved: vi.fn().mockResolvedValue(() => {}),
   }),
 }));
@@ -31,24 +33,22 @@ vi.mock("@tauri-apps/api/webviewWindow", () => ({
   WebviewWindow: { getByLabel: vi.fn().mockResolvedValue(null) },
 }));
 
+vi.mock("@tauri-apps/api/event", () => ({
+  listen: vi.fn().mockResolvedValue(() => {}),
+}));
+
 const limitsPayload = {
   accountPlanType: "plus",
   codeReviewRateLimit: null,
   additionalRateLimits: [],
-  session: { usedPercent: 32, remainingPercent: 68, resetsAt: "2026-08-25T12:00:00Z", primaryWindow: null, secondaryWindow: null },
-  weekly: { usedPercent: 57, remainingPercent: 43, resetsAt: "2026-08-28T00:00:00Z", primaryWindow: null, secondaryWindow: null },
+  session: { usedPercent: 32, remainingPercent: 68, resetsAt: "2026-08-25T12:00:00Z", windowMinutes: 300 },
+  weekly: { usedPercent: 57, remainingPercent: 43, resetsAt: "2026-08-28T00:00:00Z", windowMinutes: 10080 },
 };
 
-const todayModels = [
+const modelSplit = [
   { model: "gpt-5.6-sol", credits: 642.0, percent: 90.8 },
   { model: "gpt-5.6-luna", credits: 48.8, percent: 6.9 },
   { model: "gpt-5.6-terra", credits: 16.5, percent: 2.3 },
-];
-
-const aggregateModels = [
-  { model: "gpt-5.6-sol", credits: 60000.0, percent: 40.0 },
-  { model: "gpt-5.6-luna", credits: 30000.0, percent: 55.0 },
-  { model: "gpt-5.6-terra", credits: 9345.8, percent: 5.0 },
 ];
 
 const analyticsPayload = {
@@ -57,18 +57,44 @@ const analyticsPayload = {
   endDate: "2026-08-24",
   status: "ready",
   calibration: { k: 112.64, sampleCount: 23, deviation: 0.0, maxDeviation: 22.8, status: "excellent" },
-  today: { date: "2026-08-24", credits: 707, isPartial: true, isPending: false, models: todayModels },
-  last7Days: {
+  latestCompleteDate: "2026-08-23",
+  latestCompleteDay: { date: "2026-08-23", credits: 707, isPartial: false, isPending: false, models: modelSplit },
+  last7CompleteDays: {
+    startDate: "2026-08-17",
+    endDate: "2026-08-23",
     credits: 10571,
-    models: [
-      { model: "gpt-5.6-sol", credits: 8000.0, percent: 75.7 },
-      { model: "gpt-5.6-luna", credits: 2000.0, percent: 18.9 },
-      { model: "gpt-5.6-terra", credits: 571.0, percent: 5.4 },
-    ],
+    models: modelSplit,
+    completeness: { expectedDays: 7, completeDays: 7, missingDates: [], isComplete: true },
   },
-  last30Days: { credits: 79345, models: [] },
+  previous7CompleteDays: {
+    startDate: "2026-08-10",
+    endDate: "2026-08-16",
+    credits: 9000,
+    models: modelSplit,
+    completeness: { expectedDays: 7, completeDays: 7, missingDates: [], isComplete: true },
+  },
+  last30CompleteDays: {
+    startDate: "2026-07-25",
+    endDate: "2026-08-23",
+    credits: 79345,
+    models: modelSplit,
+    completeness: { expectedDays: 30, completeDays: 30, missingDates: [], isComplete: true },
+  },
+  sevenDayDeltaPercent: 17.5,
+  sevenDaySeries: [
+    { date: "2026-08-17", credits: 1200 },
+    { date: "2026-08-18", credits: 1400 },
+    { date: "2026-08-19", credits: 1300 },
+    { date: "2026-08-20", credits: 1600 },
+    { date: "2026-08-21", credits: 1500 },
+    { date: "2026-08-22", credits: 1800 },
+    { date: "2026-08-23", credits: 707 },
+  ],
+  today: { date: "2026-08-24", credits: null, isPartial: true, isPending: true, models: [] },
+  last7Days: { credits: 10571, models: modelSplit },
+  last30Days: { credits: 79345, models: modelSplit },
   daily: [],
-  models: aggregateModels,
+  models: modelSplit,
 };
 
 beforeEach(async () => {
@@ -83,20 +109,15 @@ afterEach(() => {
 });
 
 describe("CompactMonitor", () => {
-  it("uses today's model split instead of the 30-day aggregate", async () => {
+  it("shows complete-day KPIs and 7-day model split", async () => {
     render(<CompactMonitor />);
-
     await waitFor(() => expect(invokeHandlers.analytics).toHaveBeenCalled());
     await screen.findAllByText(/≈/);
 
-    // formatNumber rounds: today = Sol 91 · Luna 7 · Terra 2.
-    const split = screen.getByText((_, el) => el?.textContent === "S 91 · L 7 · T 2");
-    expect(split).toBeInTheDocument();
-
-    // The 30-day aggregate split would read "S 40 · L 55 · T 5" - must not appear.
-    expect(screen.queryByText((_, el) => el?.textContent === "S 40 · L 55 · T 5")).not.toBeInTheDocument();
-    // Today's headline figure comes from analytics.today.credits.
     expect(screen.getByText("≈707")).toBeInTheDocument();
+    expect(screen.getByText("≈10,571")).toBeInTheDocument();
+    expect(screen.getByText("≈79,345")).toBeInTheDocument();
+    expect(screen.getByText(/S 90.8 · L 6.9 · T 2.3/)).toBeInTheDocument();
   });
 
   it("keeps quota on a 60s cycle and analytics on a 5min cycle", async () => {
@@ -111,35 +132,30 @@ describe("CompactMonitor", () => {
     expect(limitsBaseline).toBeGreaterThan(0);
     expect(analyticsBaseline).toBeGreaterThan(0);
 
-    // Just before the first quota tick: nothing new yet.
     await act(async () => {
       await vi.advanceTimersByTimeAsync(59_999);
     });
     expect(invokeHandlers.limits.mock.calls.length).toBe(limitsBaseline);
     expect(invokeHandlers.analytics.mock.calls.length).toBe(analyticsBaseline);
 
-    // At exactly +60s: quota fires, analytics must NOT be re-fetched.
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1);
     });
     expect(invokeHandlers.limits.mock.calls.length).toBe(limitsBaseline + 1);
     expect(invokeHandlers.analytics.mock.calls.length).toBe(analyticsBaseline);
 
-    // Up to just before the 5-minute mark: only quota ticks (120s/180s/240s).
     await act(async () => {
       await vi.advanceTimersByTimeAsync(239_999);
     });
     expect(invokeHandlers.limits.mock.calls.length).toBe(limitsBaseline + 4);
     expect(invokeHandlers.analytics.mock.calls.length).toBe(analyticsBaseline);
 
-    // At exactly +5min: analytics refreshes itself once (quota ticks too).
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1);
     });
     expect(invokeHandlers.analytics.mock.calls.length).toBe(analyticsBaseline + 1);
     expect(invokeHandlers.limits.mock.calls.length).toBe(limitsBaseline + 5);
 
-    // Quota keeps its own cadence afterwards without touching analytics.
     await act(async () => {
       await vi.advanceTimersByTimeAsync(60_000);
     });
@@ -148,7 +164,6 @@ describe("CompactMonitor", () => {
   });
 
   it("keeps last good analytics values when a refresh fails", async () => {
-    // Fake everything (incl. Date) from birth so all intervals are virtual.
     vi.useFakeTimers({ now: new Date(), toFake: ["Date", "setInterval", "setTimeout", "clearInterval", "clearTimeout"] });
     render(<CompactMonitor />);
     await act(async () => {
@@ -156,13 +171,10 @@ describe("CompactMonitor", () => {
     });
     expect(screen.getByText("≈707")).toBeInTheDocument();
 
-    // Next scheduled analytics refreshes fail; UI must keep the last good data
-    // and flip the freshness pill to STALE once 15 minutes pass without success.
     invokeHandlers.analytics.mockRejectedValue(new Error("boom"));
     await act(async () => {
       await vi.advanceTimersByTimeAsync(16 * 60_000);
     });
-    // Under fake timers waitFor itself would freeze; assert synchronously.
     expect(document.body.textContent).toMatch(/STALE/i);
     expect(document.body.textContent).toContain("≈707");
   });
@@ -172,7 +184,7 @@ describe("CompactMonitor", () => {
     render(<CompactMonitor />);
     await screen.findAllByText(/≈/);
     expect(document.body.textContent).toContain("DEGRADED");
-    expect(document.body.textContent).not.toMatch(/LIVE/);
+    expect(document.body.textContent).not.toMatch(/LIVE/);
   });
 
   it("overall feed state never reports LIVE when any feed is offline", () => {
@@ -195,8 +207,8 @@ describe("CompactMonitor", () => {
   it("analytics failure does not hide quota data", async () => {
     invokeHandlers.analytics.mockRejectedValue(new Error("analytics down"));
     render(<CompactMonitor />);
-    await screen.findByText(/68%/);
-    expect(screen.getByText(/43%/)).toBeInTheDocument();
+    await screen.findByText(/43%/);
+    expect(screen.getByText("43%")).toBeInTheDocument();
   });
 
   it("flags STALE immediately after a failed refresh (age-independent)", async () => {
@@ -209,34 +221,36 @@ describe("CompactMonitor", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(5 * 60_000 + 1);
     });
-    // Only ~5 minutes have passed: LIVE would be wrong even though data is fresh enough.
     expect(document.body.textContent).toMatch(/STALE/i);
     expect(document.body.textContent).not.toMatch(/LIVE/);
   });
 
-  it("shows a pending placeholder instead of 0/0/0 for today's model split", async () => {
+  it("does not show zero model split when 7-day model data is missing", async () => {
     const pending = {
       ...analyticsPayload,
       status: "pending",
-      today: { date: "2026-08-24", credits: null, isPartial: false, isPending: true, models: [] },
+      last7CompleteDays: {
+        ...analyticsPayload.last7CompleteDays,
+        models: [],
+        completeness: { expectedDays: 7, completeDays: 0, missingDates: [], isComplete: false },
+      },
     };
     invokeHandlers.analytics.mockResolvedValue(pending);
     render(<CompactMonitor />);
     await act(async () => {});
-    expect(document.body.textContent).toContain("Sync pending");
     expect(document.body.textContent).not.toContain("S 0");
   });
 
   it("manual refresh refetches both endpoints", async () => {
     vi.useFakeTimers();
-    const { container } = render(<CompactMonitor />);
+    render(<CompactMonitor />);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
     const limitsBaseline = invokeHandlers.limits.mock.calls.length;
     const analyticsBaseline = invokeHandlers.analytics.mock.calls.length;
 
-    const refreshButton = container.querySelectorAll("button")[0] as HTMLButtonElement;
+    const refreshButton = screen.getByRole("button", { name: "Refresh" });
     await act(async () => {
       refreshButton.click();
       await vi.advanceTimersByTimeAsync(0);

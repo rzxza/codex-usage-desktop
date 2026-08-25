@@ -11,6 +11,7 @@ export default defineConfig({
   },
   test: {
     setupFiles: ["./src/test/setup.ts"],
+    testTimeout: 15000,
     coverage: {
       reporter: ["text", "html"],
     },

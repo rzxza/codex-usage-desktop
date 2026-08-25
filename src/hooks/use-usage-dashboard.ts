@@ -52,6 +52,7 @@ function isNewerVersion(current: string, target: string): boolean {
 }
 
 const AUTO_RESCAN_MS = 5 * 60_000;
+const UPDATES_ENABLED = false;
 const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60_000;
 const UPDATE_CHECK_RETRY_MS = 60 * 60_000;
 const CODEX_QUOTA_FORECAST_URL = "https://www.willcodexquotareset.com/";
@@ -302,10 +303,10 @@ export function useUsageDashboard() {
       setCodexQuotaForecast(null);
     }
   });
-  const loadServerCreditAnalytics = useEffectEvent(async () => {
+  const loadServerCreditAnalytics = useEffectEvent(async (forceRefresh = false) => {
     setIsServerAnalyticsLoading(true);
     try {
-      const data = await fetchServerCreditAnalytics();
+      const data = await fetchServerCreditAnalytics(forceRefresh);
       setServerAnalytics(data);
       setServerAnalyticsError(null);
     } catch (serverError) {
@@ -536,7 +537,18 @@ export function useUsageDashboard() {
       setError(scanError instanceof Error ? scanError.message : "Background refresh failed.");
     });
 
-    void runBackgroundUpdateCheck();
+    if (UPDATES_ENABLED) {
+      void runBackgroundUpdateCheck();
+    } else {
+      try {
+        localStorage.removeItem("last_update_check_result");
+        localStorage.removeItem("last_update_check_time");
+        localStorage.removeItem("last_update_check_failed_time");
+        localStorage.removeItem("dismissed_update_tag");
+      } catch (_) {
+        // Ignore storage errors.
+      }
+    }
   });
 
   const handleBackgroundRefreshCompleted = useEffectEvent(async (refresh: UsageRefreshResponse) => {
@@ -571,7 +583,7 @@ export function useUsageDashboard() {
   }, [bootstrap]);
 
   useEffect(() => {
-    if (!bootstrapped) return;
+    if (!bootstrapped || !UPDATES_ENABLED) return;
 
     let cancelled = false;
     let timer: number | null = null;
@@ -848,7 +860,7 @@ export function useUsageDashboard() {
     try {
       await scanAndReloadOverview(startedAt, { force: true });
       await loadCodexQuotaForecast();
-      await loadServerCreditAnalytics();
+      await loadServerCreditAnalytics(true);
     } catch (refreshError) {
       setError(refreshError instanceof Error ? refreshError.message : "Refresh failed.");
     } finally {
@@ -935,6 +947,7 @@ export function useUsageDashboard() {
   };
 
   const handleManualUpdateCheck = async () => {
+    if (!UPDATES_ENABLED) return;
     setIsUpdateChecking(true);
     setUpdateCheckError(null);
     try {
@@ -958,6 +971,7 @@ export function useUsageDashboard() {
   };
 
   const handleUpgrade = async () => {
+    if (!UPDATES_ENABLED) return;
     if (updateInstallStatus === "installed") {
       try {
         localStorage.removeItem("last_update_check_result");

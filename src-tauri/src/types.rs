@@ -537,6 +537,32 @@ pub struct CreditAggregate {
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
+pub struct CreditWindowCompleteness {
+    pub expected_days: u32,
+    pub complete_days: u32,
+    pub missing_dates: Vec<String>,
+    pub is_complete: bool,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CompleteCreditWindow {
+    pub start_date: String,
+    pub end_date: String,
+    pub credits: Option<f64>,
+    pub models: Vec<ModelCreditUsage>,
+    pub completeness: CreditWindowCompleteness,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SevenDayCreditPoint {
+    pub date: String,
+    pub credits: f64,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct CalibrationDiagnostics {
     pub eligible_days: usize,
     pub excluded_days: usize,
@@ -555,6 +581,13 @@ pub struct ServerCreditAnalyticsResponse {
     pub end_date: String,
     pub status: ServerCreditAnalyticsStatus,
     pub calibration: CalibrationSummary,
+    pub latest_complete_date: Option<String>,
+    pub latest_complete_day: Option<DailyCreditUsage>,
+    pub last_7_complete_days: CompleteCreditWindow,
+    pub previous_7_complete_days: CompleteCreditWindow,
+    pub last_30_complete_days: CompleteCreditWindow,
+    pub seven_day_delta_percent: Option<f64>,
+    pub seven_day_series: Vec<SevenDayCreditPoint>,
     pub today: Option<DailyCreditUsage>,
     pub last_7_days: CreditAggregate,
     pub last_30_days: CreditAggregate,

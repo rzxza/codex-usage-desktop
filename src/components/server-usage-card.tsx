@@ -1,6 +1,5 @@
 import { Card, CardContent } from "@/components/ui/card";
 import type { ServerCreditAnalyticsResponse } from "@/lib/api";
-import { formatNumber } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
 
@@ -13,8 +12,6 @@ type ServerUsageCardProps = {
 export function ServerUsageCard({ analytics, error, isLoading }: ServerUsageCardProps) {
   const { t } = useTranslation();
 
-  // Stale-while-revalidate: only show the skeleton before first data;
-  // background refreshes keep values on screen.
   if (isLoading && !analytics) {
     return (
       <Card className="rounded-lg">
@@ -45,10 +42,13 @@ export function ServerUsageCard({ analytics, error, isLoading }: ServerUsageCard
     if (value === null || value === undefined) {
       return t("server_usage.na");
     }
-    return `≈ ${formatNumber(value)}`;
+    const rounded = Math.round(value);
+    return `≈ ${rounded.toLocaleString()}`;
   };
 
-  const today = analytics.today;
+  const last7 = analytics.last7CompleteDays;
+  const last30 = analytics.last30CompleteDays;
+  const models = last30.models;
 
   return (
     <Card className="rounded-lg border-border/80 bg-surface">
@@ -86,44 +86,48 @@ export function ServerUsageCard({ analytics, error, isLoading }: ServerUsageCard
         <div className="mt-4 grid gap-4 sm:grid-cols-3">
           <div className="rounded-lg border border-border/60 bg-background/40 p-3">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              {t("server_usage.today")}
+              {t("server_usage.latest_complete_day")}
+            </p>
+            <p className="text-[11px] font-medium text-muted-foreground">
+              {analytics.latestCompleteDate ?? "—"}
             </p>
             <p className="mt-1 font-display text-2xl font-bold tabular-nums text-foreground">
-              {formatCredits(today?.credits)}
+              {formatCredits(analytics.latestCompleteDay?.credits)}
             </p>
-            {today?.isPending ? (
-              <p className="mt-1 text-[11px] font-medium text-warning">{t("server_usage.pending")}</p>
-            ) : today?.isPartial ? (
-              <p className="mt-1 text-[11px] font-medium text-muted-foreground">{t("server_usage.partial")}</p>
+          </div>
+
+          <div className="rounded-lg border border-border/60 bg-background/40 p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              {t("server_usage.last_7_complete")}
+            </p>
+            <p className="mt-1 font-display text-2xl font-bold tabular-nums text-foreground">
+              {formatCredits(last7.credits)}
+            </p>
+            {!last7.completeness.isComplete ? (
+              <p className="mt-1 text-[11px] font-medium text-warning">{t("server_usage.incomplete")}</p>
             ) : null}
           </div>
 
           <div className="rounded-lg border border-border/60 bg-background/40 p-3">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              {t("server_usage.last_7_days")}
+              {t("server_usage.last_30_complete")}
             </p>
             <p className="mt-1 font-display text-2xl font-bold tabular-nums text-foreground">
-              {formatCredits(analytics.last7Days.credits)}
+              {formatCredits(last30.credits)}
             </p>
-          </div>
-
-          <div className="rounded-lg border border-border/60 bg-background/40 p-3">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              {t("server_usage.last_30_days")}
-            </p>
-            <p className="mt-1 font-display text-2xl font-bold tabular-nums text-foreground">
-              {formatCredits(analytics.last30Days.credits)}
-            </p>
+            {!last30.completeness.isComplete ? (
+              <p className="mt-1 text-[11px] font-medium text-warning">{t("server_usage.incomplete")}</p>
+            ) : null}
           </div>
         </div>
 
-        {analytics.models.length > 0 ? (
+        {models.length > 0 ? (
           <div className="mt-4">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               {t("server_usage.models")}
             </p>
             <div className="mt-2 flex h-2.5 w-full overflow-hidden rounded-full bg-muted/40">
-              {analytics.models.map((model) => (
+              {models.map((model) => (
                 <div
                   key={model.model}
                   className={cn(
@@ -133,15 +137,15 @@ export function ServerUsageCard({ analytics, error, isLoading }: ServerUsageCard
                     model.model === "gpt-5.6-luna" && "bg-teal-500",
                   )}
                   style={{ width: `${Math.max(0, Math.min(100, model.percent))}%` }}
-                  title={`${model.model}: ${formatNumber(model.percent)}%`}
+                  title={`${model.model}: ${model.percent.toFixed(1)}%`}
                 />
               ))}
             </div>
             <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
-              {analytics.models.map((model) => (
+              {models.map((model) => (
                 <span key={model.model} className="text-[11px] text-muted-foreground">
                   <span className="mr-1 inline-block h-2 w-2 rounded-full bg-current" />
-                  {model.model} · {formatNumber(model.percent)}%
+                  {model.model} · {model.percent.toFixed(1)}%
                 </span>
               ))}
             </div>
@@ -155,7 +159,7 @@ export function ServerUsageCard({ analytics, error, isLoading }: ServerUsageCard
           </span>
           {analytics.calibration.k !== null ? (
             <span>
-              {t("server_usage.k")}: <span className="font-mono">{formatNumber(analytics.calibration.k)}</span>
+              {t("server_usage.k")}: <span className="font-mono">{analytics.calibration.k.toFixed(4)}</span>
             </span>
           ) : null}
           <span>
@@ -164,9 +168,12 @@ export function ServerUsageCard({ analytics, error, isLoading }: ServerUsageCard
           {analytics.calibration.deviation !== null ? (
             <span>
               {t("server_usage.deviation")}:{" "}
-              <span className="font-mono">{formatNumber(analytics.calibration.deviation)}%</span>
+              <span className="font-mono">{analytics.calibration.deviation.toFixed(2)}%</span>
             </span>
           ) : null}
+          <span>
+            {t("server_usage.latest_complete_date")}: <span className="font-mono">{analytics.latestCompleteDate ?? "—"}</span>
+          </span>
           <span className="ml-auto">
             {t("server_usage.updated")}:{" "}
             <span className="font-mono">{new Date(analytics.fetchedAt).toLocaleTimeString()}</span>

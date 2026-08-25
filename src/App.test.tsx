@@ -265,7 +265,9 @@ describe("App", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1);
     });
-    expect(invokeMock).toHaveBeenCalledWith("check_for_updates");
+    expect(invokeMock).not.toHaveBeenCalledWith("check_for_updates");
+    expect(localStorage.getItem("last_update_check_result")).toBeNull();
+    expect(localStorage.getItem("last_update_check_time")).toBeNull();
   });
 
   it("prevents the default page context menu", () => {
@@ -1595,6 +1597,31 @@ describe("App", () => {
             maxDeviation: null,
             status: "invalid",
           },
+          latestCompleteDate: null,
+          latestCompleteDay: null,
+          last7CompleteDays: {
+            startDate: "2026-03-21",
+            endDate: "2026-03-27",
+            credits: null,
+            models: [],
+            completeness: { expectedDays: 7, completeDays: 0, missingDates: [], isComplete: false },
+          },
+          previous7CompleteDays: {
+            startDate: "2026-03-14",
+            endDate: "2026-03-20",
+            credits: null,
+            models: [],
+            completeness: { expectedDays: 7, completeDays: 0, missingDates: [], isComplete: false },
+          },
+          last30CompleteDays: {
+            startDate: "2026-02-26",
+            endDate: "2026-03-27",
+            credits: null,
+            models: [],
+            completeness: { expectedDays: 30, completeDays: 0, missingDates: [], isComplete: false },
+          },
+          sevenDayDeltaPercent: null,
+          sevenDaySeries: [],
           today: null,
           last7Days: { credits: null, models: [] },
           last30Days: { credits: null, models: [] },
@@ -1614,13 +1641,12 @@ describe("App", () => {
 
     await waitFor(() => expect(screen.getAllByText("3,400").length).toBeGreaterThan(0));
 
-    await waitFor(() => expect(invokeMock).toHaveBeenCalledTimes(6));
+    await waitFor(() => expect(invokeMock).toHaveBeenCalledTimes(5));
     expect(invokeMock).toHaveBeenNthCalledWith(1, "fetch_codex_limits");
-    expect(invokeMock).toHaveBeenNthCalledWith(2, "fetch_server_credit_analytics");
+    expect(invokeMock).toHaveBeenNthCalledWith(2, "fetch_server_credit_analytics", { forceRefresh: false });
     expect(invokeMock).toHaveBeenNthCalledWith(3, "fetch_overview", { range: "30d" });
     expect(invokeMock).toHaveBeenNthCalledWith(4, "scan_usage");
-    expect(invokeMock).toHaveBeenNthCalledWith(5, "check_for_updates");
-    expect(invokeMock).toHaveBeenNthCalledWith(6, "fetch_overview", { range: "30d" });
+    expect(invokeMock).toHaveBeenNthCalledWith(5, "fetch_overview", { range: "30d" });
   });
 
   it("keeps the cached overview visible when the background scan fails", async () => {
@@ -2115,13 +2141,12 @@ describe("App", () => {
     expect(invokeMock).not.toHaveBeenCalledWith("export_usage", expect.anything());
   });
 
-  it("dismisses the main update banner and shows the eye-catching upgrade button in the header", async () => {
+  it("does not show the update banner when updates are disabled", async () => {
     localStorage.clear();
     invokeMock.mockImplementation(async (command: string, args?: { range?: string; url?: string }) => {
       if (command === "scan_usage") {
         return { importedDays: 3, scannedAt: "2026-04-26T00:00:00.000Z", timezone: "UTC" };
       }
-
       if (command === "fetch_codex_limits") {
         return {
           session: { usedPercent: 20, remainingPercent: 80, windowMinutes: 300, resetsAt: "2026-04-26T05:00:00.000Z" },
@@ -2130,7 +2155,6 @@ describe("App", () => {
           source: "cli-rpc",
         };
       }
-
       if (command === "fetch_overview" && args?.range === "30d") {
         return {
           range: "30d",
@@ -2140,126 +2164,51 @@ describe("App", () => {
           endDate: "2026-04-26",
           updatedAt: "2026-04-26T00:00:00.000Z",
           daily: [],
-          totals: {
-            inputTokens: 2600,
-            cachedInputTokens: 400,
-            outputTokens: 800,
-            totalTokens: 3400,
-            costUSD: 0.0088685,
-            avgTokensPerDay: 113.3333333,
-            avgCostPerDay: 0.0002956,
-            cacheHitRate: 0.1538,
-            costPerMillionTokens: 2.6083,
-          },
+          totals: { inputTokens: 2600, cachedInputTokens: 400, outputTokens: 800, totalTokens: 3400, costUSD: 0.0088685, avgTokensPerDay: 113.3333333, avgCostPerDay: 0.0002956, cacheHitRate: 0.1538, costPerMillionTokens: 2.6083 },
           models: [],
           projects: [],
         };
       }
-
-      if (command === "check_for_updates") {
-        return {
-          hasUpdate: true,
-          currentVersion: "0.4.0",
-          latestVersion: "0.5.0",
-          latestTag: "v0.5.0",
-          releaseName: "Big Release",
-          releaseNotes: "Feature details",
-          releaseUrl: "https://github.com/test/release",
-        };
-      }
-
-      if (command === "download_and_install_update") {
-        return { version: "0.5.0" };
-      }
-
-      if (command === "restart_app") {
-        return null;
-      }
-
       throw new Error(`Unexpected invoke: ${command}`);
     });
 
     render(<App />);
-
-    // Wait for the main update banner to be displayed
-    await waitFor(() => expect(screen.getByText("New update available: v0.5.0")).toBeInTheDocument());
-
-    // Click the X button to dismiss the banner
-    const dismissButton = screen.getByRole("button", { name: "Dismiss update notification" });
-    await userEvent.click(dismissButton);
-
-    // Main update banner should disappear
-    expect(screen.queryByText("New update available: v0.5.0")).not.toBeInTheDocument();
-
-    // Check that the persistent dismiss tag was stored in localStorage
-    expect(localStorage.getItem("dismissed_update_tag")).toBe("v0.5.0");
-
-    // The small upgrade button in the header next to CODEX USAGE DESKTOP should appear
-    const headerUpgradeButton = screen.getByRole("button", { name: "Upgrade v0.5.0" });
-    expect(headerUpgradeButton).toBeInTheDocument();
-
-    // Click the header upgrade button to download and install the update
-    await userEvent.click(headerUpgradeButton);
-    expect(invokeMock).toHaveBeenCalledWith("download_and_install_update");
-
-    const restartButton = await screen.findByRole("button", { name: "Restart to update" });
-    await userEvent.click(restartButton);
-    expect(invokeMock).toHaveBeenCalledWith("restart_app");
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Settings" })).toBeInTheDocument());
+    expect(screen.queryByText(/New update available/i)).not.toBeInTheDocument();
+    expect(invokeMock).not.toHaveBeenCalledWith("check_for_updates");
+    expect(invokeMock).not.toHaveBeenCalledWith("download_and_install_update");
+    expect(localStorage.getItem("dismissed_update_tag")).toBeNull();
   });
 
-  it("shows download progress while installing an update", async () => {
-    let finishDownload = (_value: { version: string }) => {};
-
-    invokeMock.mockImplementation(async (command: string, args?: { range?: string }) => {
+  it("does not expose the update download path when updates are disabled", async () => {
+    invokeMock.mockImplementation(async (command: string) => {
       if (command === "scan_usage") {
         return { importedDays: 3, scannedAt: "2026-04-26T00:00:00.000Z", timezone: "UTC" };
       }
-
       if (command === "fetch_codex_limits") {
         throw new Error("limits unavailable");
       }
-
       if (command === "fetch_overview") {
-        return overview();
-      }
-
-      if (command === "check_for_updates") {
         return {
-          hasUpdate: true,
-          currentVersion: "0.4.0",
-          latestVersion: "0.5.0",
-          latestTag: "v0.5.0",
-          releaseName: "Big Release",
-          releaseNotes: "Feature details",
-          releaseUrl: "https://github.com/test/release",
+          range: "30d",
+          days: 30,
+          timezone: "UTC",
+          startDate: "2026-03-28",
+          endDate: "2026-04-26",
+          updatedAt: "2026-04-26T00:00:00.000Z",
+          daily: [],
+          totals: { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, totalTokens: 0, costUSD: 0, avgTokensPerDay: 0, avgCostPerDay: 0, cacheHitRate: 0, costPerMillionTokens: 0 },
+          models: [],
+          projects: [],
         };
       }
-
-      if (command === "download_and_install_update") {
-        return new Promise((resolve) => {
-          finishDownload = resolve;
-        });
-      }
-
       throw new Error(`Unexpected invoke: ${command}`);
     });
 
     render(<App />);
-
-    await waitFor(() => expect(screen.getByText("New update available: v0.5.0")).toBeInTheDocument());
-    await waitFor(() => expect(eventListeners.get("update-download-progress")?.length).toBeGreaterThan(0));
-
-    await userEvent.click(screen.getByRole("button", { name: "Upgrade Now" }));
-
-    eventListeners.get("update-download-progress")?.forEach((listener) => {
-      listener({ payload: { downloaded: 50, total: 100, finished: false } });
-    });
-
-    expect(await screen.findByRole("button", { name: "Downloading 50%" })).toBeDisabled();
-    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "50");
-
-    finishDownload({ version: "0.5.0" });
-    expect(await screen.findByRole("button", { name: "Restart to Update" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Settings" })).toBeInTheDocument());
+    expect(screen.queryByText(/New update available/i)).not.toBeInTheDocument();
+    expect(invokeMock).not.toHaveBeenCalledWith("download_and_install_update");
   });
 
   it("defaults to hiding the Logs tab, and shows it when toggled in Settings", async () => {
@@ -2499,9 +2448,8 @@ describe("App", () => {
     // The update banner should NOT be in the document
     expect(screen.queryByText(/New update available/i)).not.toBeInTheDocument();
     
-    // Check that the cached result in localStorage was corrected to hasUpdate = false
-    const parsedCache = JSON.parse(localStorage.getItem("last_update_check_result") || "{}");
-    expect(parsedCache.hasUpdate).toBe(false);
-    expect(parsedCache.currentVersion).toBe(tauriConfig.version);
+    // Updates are disabled: cached update state must be cleared entirely.
+    expect(localStorage.getItem("last_update_check_result")).toBeNull();
+    expect(localStorage.getItem("last_update_check_time")).toBeNull();
   });
 });

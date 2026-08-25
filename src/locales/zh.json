@@ -701,7 +701,12 @@
     "pending": "等待同步",
     "partial": "部分 / 分析延迟",
     "stale_banner": "上次刷新失败——显示的是最近一次成功数据。",
-    "refreshing": "刷新中…"
+    "refreshing": "刷新中…",
+    "latest_complete_day": "最近完整日",
+    "last_7_complete": "最近 7 个完整日",
+    "last_30_complete": "最近 30 个完整日",
+    "incomplete": "数据不完整",
+    "latest_complete_date": "最近完整日"
   },
   "compact": {
     "analytics_updated": "分析",
@@ -709,7 +714,7 @@
     "error_short": "同步错误",
     "five_hour": "5 小时",
     "live": "实时",
-    "model_split": "今日模型占比",
+    "model_split": "模型",
     "na": "无",
     "offline": "离线",
     "open_dashboard": "打开主面板",
@@ -726,6 +731,18 @@
     "unavailable": "不可用",
     "weekly": "每周",
     "loading": "同步中",
-    "degraded": "降级"
+    "degraded": "降级",
+    "current_quota": "当前额度",
+    "reset_cards": "重置卡 ×{{count}}",
+    "latest_complete_day": "最近完整日",
+    "last7_complete": "7 个完整日",
+    "last30_complete": "30 个完整日",
+    "seven_day_trend": "7 日趋势",
+    "calibration_short": "校准",
+    "samples_short": " 样本",
+    "drag": "拖动",
+    "hide": "隐藏",
+    "opacity": "透明度",
+    "incomplete": "不完整"
   }
 }

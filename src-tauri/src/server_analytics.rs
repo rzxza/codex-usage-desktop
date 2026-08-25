@@ -2,7 +2,10 @@ use crate::{codex_limits, credit_analytics, date, types::ServerCreditAnalyticsRe
 use reqwest::blocking::{Client, RequestBuilder};
 use serde::Deserialize;
 use serde_json::Value;
-use std::time::Duration;
+use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
+use std::sync::{Arc, Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
 const DAILY_WORKSPACE_USAGE_COUNTS_URL: &str =
     "https://chatgpt.com/backend-api/wham/analytics/daily-workspace-usage-counts";
@@ -44,73 +47,90 @@ pub(crate) struct TokenUsageBreakdownModel {
     pub credits: f64,
 }
 
-/// In-process TTL cache so the main window and the compact window share one
-/// WHAM analytics result instead of double-hitting the internal endpoint on
-/// their overlapping refresh cycles. Single-flight via a dedicated mutex:
-/// waiters re-check the cache after acquiring it and usually return for free.
-const ANALYTICS_TTL: std::time::Duration = std::time::Duration::from_secs(240);
-static ANALYTICS_CACHE: std::sync::OnceLock<TtlCache<ServerCreditAnalyticsResponse>> =
-    std::sync::OnceLock::new();
-static ANALYTICS_FLIGHT: std::sync::Mutex<()> = std::sync::Mutex::new(());
+/// In-process account-keyed TTL cache so the main window and the compact
+/// window share one WHAM analytics result without one account receiving
+/// another account's cached data. Single-flight is per account key.
+const ANALYTICS_TTL: Duration = Duration::from_secs(240);
 
-struct TtlCache<T> {
-    cell: std::sync::Mutex<Option<(std::time::Instant, T)>>,
+#[derive(Clone)]
+struct AnalyticsCacheEntry {
+    stored_at: Instant,
+    value: ServerCreditAnalyticsResponse,
 }
 
-impl<T: Clone> TtlCache<T> {
-    const fn new() -> Self {
-        Self {
-            cell: std::sync::Mutex::new(None),
+static ANALYTICS_CACHE: OnceLock<Mutex<HashMap<String, AnalyticsCacheEntry>>> = OnceLock::new();
+static ANALYTICS_FLIGHTS: OnceLock<Mutex<HashMap<String, Arc<Mutex<()>>>>> = OnceLock::new();
+
+fn analytics_cache_key(auth: &codex_limits::CodexAuth) -> String {
+    if let Some(account_id) = &auth.account_id {
+        return format!("account:{account_id}");
+    }
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    auth.access_token.hash(&mut hasher);
+    format!("token:{:016x}", hasher.finish())
+}
+
+fn analytics_cache() -> &'static Mutex<HashMap<String, AnalyticsCacheEntry>> {
+    ANALYTICS_CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn analytics_flights() -> &'static Mutex<HashMap<String, Arc<Mutex<()>>>> {
+    ANALYTICS_FLIGHTS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn flight_for(key: &str) -> Arc<Mutex<()>> {
+    let mut flights = analytics_flights()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
+    flights
+        .entry(key.to_string())
+        .or_insert_with(|| Arc::new(Mutex::new(())))
+        .clone()
+}
+
+pub fn fetch_server_credit_analytics(
+    force_refresh: bool,
+) -> Result<ServerCreditAnalyticsResponse, String> {
+    let auth = codex_limits::load_codex_auth()?;
+    let key = analytics_cache_key(&auth);
+
+    {
+        let cache = analytics_cache().lock().unwrap_or_else(|e| e.into_inner());
+        if !force_refresh {
+            if let Some(entry) = cache
+                .get(&key)
+                .filter(|entry| entry.stored_at.elapsed() < ANALYTICS_TTL)
+            {
+                return Ok(entry.value.clone());
+            }
         }
     }
 
-    fn get(&self, ttl: std::time::Duration) -> Option<T> {
-        let guard = self.cell.lock().unwrap_or_else(|e| e.into_inner());
-        guard
-            .as_ref()
-            .filter(|(at, _)| at.elapsed() < ttl)
-            .map(|(_, value)| value.clone())
+    let wait_started = Instant::now();
+    let flight = flight_for(&key);
+    let _guard = flight.lock().unwrap_or_else(|e| e.into_inner());
+
+    {
+        let cache = analytics_cache().lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(entry) = cache.get(&key) {
+            let fresh_enough = !force_refresh && entry.stored_at.elapsed() < ANALYTICS_TTL;
+            let concurrent_force = force_refresh && entry.stored_at >= wait_started;
+            if fresh_enough || concurrent_force {
+                return Ok(entry.value.clone());
+            }
+        }
     }
 
-    fn store(&self, value: T) {
-        let mut guard = self.cell.lock().unwrap_or_else(|e| e.into_inner());
-        *guard = Some((std::time::Instant::now(), value));
-    }
-}
-
-/// Generic TTL + single-flight lookup. `load` runs at most once per TTL
-/// window even under concurrent callers.
-fn cached_lookup<T, F>(
-    cache: &TtlCache<T>,
-    flight: &std::sync::Mutex<()>,
-    ttl: std::time::Duration,
-    load: F,
-) -> Result<T, String>
-where
-    T: Clone,
-    F: FnOnce() -> Result<T, String>,
-{
-    if let Some(value) = cache.get(ttl) {
-        return Ok(value);
-    }
-    let _in_flight = flight.lock().unwrap_or_else(|e| e.into_inner());
-    // Another caller may have refreshed while we waited on the flight lock.
-    if let Some(value) = cache.get(ttl) {
-        return Ok(value);
-    }
-    let value = load()?;
-    cache.store(value.clone());
+    let value = fetch_server_credit_analytics_uncached()?;
+    let entry = AnalyticsCacheEntry {
+        stored_at: Instant::now(),
+        value: value.clone(),
+    };
+    analytics_cache()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .insert(key, entry);
     Ok(value)
-}
-
-pub fn fetch_server_credit_analytics() -> Result<ServerCreditAnalyticsResponse, String> {
-    let cache = ANALYTICS_CACHE.get_or_init(TtlCache::new);
-    cached_lookup(
-        cache,
-        &ANALYTICS_FLIGHT,
-        ANALYTICS_TTL,
-        fetch_server_credit_analytics_uncached,
-    )
 }
 
 fn fetch_server_credit_analytics_uncached() -> Result<ServerCreditAnalyticsResponse, String> {
@@ -288,10 +308,57 @@ fn parse_token_usage_breakdown(body: &str) -> Result<Vec<TokenUsageBreakdownDay>
 
 #[cfg(test)]
 mod tests {
-    use super::{cached_lookup, TtlCache};
+    use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
     use std::time::Duration;
+
+    struct TtlCache<T> {
+        cell: std::sync::Mutex<Option<(std::time::Instant, T)>>,
+    }
+
+    impl<T: Clone> TtlCache<T> {
+        fn new() -> Self {
+            Self {
+                cell: std::sync::Mutex::new(None),
+            }
+        }
+
+        fn get(&self, ttl: Duration) -> Option<T> {
+            let guard = self.cell.lock().unwrap_or_else(|e| e.into_inner());
+            guard
+                .as_ref()
+                .filter(|(at, _)| at.elapsed() < ttl)
+                .map(|(_, value)| value.clone())
+        }
+
+        fn store(&self, value: T) {
+            let mut guard = self.cell.lock().unwrap_or_else(|e| e.into_inner());
+            *guard = Some((std::time::Instant::now(), value));
+        }
+    }
+
+    fn cached_lookup<T, F>(
+        cache: &TtlCache<T>,
+        flight: &std::sync::Mutex<()>,
+        ttl: Duration,
+        load: F,
+    ) -> Result<T, String>
+    where
+        T: Clone,
+        F: FnOnce() -> Result<T, String>,
+    {
+        if let Some(value) = cache.get(ttl) {
+            return Ok(value);
+        }
+        let _in_flight = flight.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(value) = cache.get(ttl) {
+            return Ok(value);
+        }
+        let value = load()?;
+        cache.store(value.clone());
+        Ok(value)
+    }
 
     #[test]
     fn serves_fresh_value_without_invoking_loader() {
@@ -357,9 +424,6 @@ mod tests {
         .unwrap();
         assert_eq!(calls.load(Ordering::SeqCst), 1);
     }
-
-    // Existing analytics tests operate through `super::*`.
-    use super::*;
 
     fn counts_day(date: &str) -> WorkspaceUsageCountsDay {
         WorkspaceUsageCountsDay {

@@ -211,10 +211,14 @@ async fn fetch_codex_quota_forecast() -> Result<CodexQuotaForecastResponse, Stri
 }
 
 #[tauri::command]
-async fn fetch_server_credit_analytics() -> Result<ServerCreditAnalyticsResponse, String> {
-    tauri::async_runtime::spawn_blocking(server_analytics::fetch_server_credit_analytics)
-        .await
-        .map_err(|error| error.to_string())?
+async fn fetch_server_credit_analytics(
+    force_refresh: bool,
+) -> Result<ServerCreditAnalyticsResponse, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        server_analytics::fetch_server_credit_analytics(force_refresh)
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
 
 #[tauri::command]

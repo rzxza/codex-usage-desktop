@@ -2,9 +2,9 @@ use crate::{
     credit_rates,
     server_analytics::{TokenUsageBreakdownDay, TokenUsageBreakdownModel, WorkspaceUsageCountsDay},
     types::{
-        CalibrationDiagnostics, CalibrationStatus, CalibrationSummary, CreditAggregate,
-        DailyCreditUsage, ModelCreditUsage, ServerCreditAnalyticsResponse,
-        ServerCreditAnalyticsStatus,
+        CalibrationDiagnostics, CalibrationStatus, CalibrationSummary, CompleteCreditWindow,
+        CreditAggregate, CreditWindowCompleteness, DailyCreditUsage, ModelCreditUsage,
+        ServerCreditAnalyticsResponse, ServerCreditAnalyticsStatus, SevenDayCreditPoint,
     },
 };
 use std::cmp::Ordering;
@@ -95,6 +95,65 @@ pub fn build_server_credit_analytics(
     };
 
     let daily = build_daily_usage(&counts_by_date, &breakdowns_by_date, today, k);
+    let daily_by_date: BTreeMap<String, DailyCreditUsage> = daily
+        .iter()
+        .map(|day| (day.date.clone(), day.clone()))
+        .collect();
+
+    let latest_complete_date = all_dates
+        .iter()
+        .filter(|date| is_complete_day(date, today, &counts_by_date, &breakdowns_by_date))
+        .max()
+        .cloned();
+    let latest_complete_day = latest_complete_date
+        .as_ref()
+        .and_then(|date| daily_by_date.get(date).cloned());
+    let window_end = latest_complete_date
+        .clone()
+        .unwrap_or_else(|| today.to_string());
+    let previous_7_end =
+        crate::date::shift_date_key(&window_end, -7).unwrap_or_else(|_| window_end.clone());
+
+    let last_7_complete_days = complete_window(
+        &window_end,
+        7,
+        &counts_by_date,
+        &breakdowns_by_date,
+        today,
+        &daily_by_date,
+    );
+    let previous_7_complete_days = complete_window(
+        &previous_7_end,
+        7,
+        &counts_by_date,
+        &breakdowns_by_date,
+        today,
+        &daily_by_date,
+    );
+    let last_30_complete_days = complete_window(
+        &window_end,
+        30,
+        &counts_by_date,
+        &breakdowns_by_date,
+        today,
+        &daily_by_date,
+    );
+    let seven_day_series = seven_day_series(
+        &window_end,
+        &counts_by_date,
+        &breakdowns_by_date,
+        today,
+        &daily_by_date,
+    );
+    let seven_day_delta_percent = match (
+        last_7_complete_days.credits,
+        previous_7_complete_days.credits,
+    ) {
+        (Some(current), Some(previous)) if previous > 0.0 => {
+            Some((current - previous) / previous * 100.0)
+        }
+        _ => None,
+    };
 
     let today_entry = daily.iter().find(|day| day.date == today);
     let top_status = if k.is_none() {
@@ -137,6 +196,13 @@ pub fn build_server_credit_analytics(
         end_date: end_date.to_string(),
         status: top_status,
         calibration,
+        latest_complete_date,
+        latest_complete_day,
+        last_7_complete_days,
+        previous_7_complete_days,
+        last_30_complete_days,
+        seven_day_delta_percent,
+        seven_day_series,
         today: today_entry.cloned(),
         last_7_days: aggregate_credits(&daily, &last_7_dates),
         last_30_days: aggregate_credits(&daily, &last_30_dates),
@@ -158,6 +224,139 @@ fn base_credits(day: &WorkspaceUsageCountsDay) -> f64 {
         + credit_rates::BASE_CACHED_INPUT_PER_MILLION * day.totals.cached_text_input_tokens as f64
         + credit_rates::BASE_OUTPUT_PER_MILLION * day.totals.text_output_tokens as f64)
         / MILLION
+}
+
+fn is_complete_day(
+    date: &str,
+    today: &str,
+    counts_by_date: &BTreeMap<String, WorkspaceUsageCountsDay>,
+    breakdowns_by_date: &BTreeMap<String, TokenUsageBreakdownDay>,
+) -> bool {
+    if date >= today {
+        return false;
+    }
+    let Some(counts_day) = counts_by_date.get(date) else {
+        return false;
+    };
+    let Some(breakdown_day) = breakdowns_by_date.get(date) else {
+        return false;
+    };
+    if breakdown_day.units != "percent" {
+        return false;
+    }
+    let total_tokens = token_total(counts_day);
+    if total_tokens == 0 {
+        return breakdown_day.models.is_empty()
+            || breakdown_day
+                .models
+                .iter()
+                .all(|model| model.credits == 0.0);
+    }
+    let Some((known, _)) = usable_models(&breakdown_day.models) else {
+        return false;
+    };
+    let total_percent: f64 = known.iter().map(|model| model.credits).sum();
+    total_percent > 0.0
+}
+
+fn complete_window(
+    end_date: &str,
+    window_days: i64,
+    counts_by_date: &BTreeMap<String, WorkspaceUsageCountsDay>,
+    breakdowns_by_date: &BTreeMap<String, TokenUsageBreakdownDay>,
+    today: &str,
+    daily_by_date: &BTreeMap<String, DailyCreditUsage>,
+) -> CompleteCreditWindow {
+    let start_date = crate::date::shift_date_key(end_date, -(window_days - 1))
+        .unwrap_or_else(|_| end_date.to_string());
+    let mut complete_dates = Vec::new();
+    let mut missing_dates = Vec::new();
+    let mut current = start_date.clone();
+    while current.as_str() <= end_date {
+        if is_complete_day(&current, today, counts_by_date, breakdowns_by_date) {
+            complete_dates.push(current.clone());
+        } else {
+            missing_dates.push(current.clone());
+        }
+        current = crate::date::shift_date_key(&current, 1).unwrap_or_else(|_| current.clone());
+    }
+
+    let is_complete = missing_dates.is_empty();
+    let mut credits_sum = 0.0;
+    let mut has_credits = false;
+    let mut by_model: BTreeMap<String, f64> = BTreeMap::new();
+    for date in &complete_dates {
+        if let Some(day) = daily_by_date.get(date) {
+            if let Some(credits) = day.credits {
+                has_credits = true;
+                credits_sum += credits;
+                for model in &day.models {
+                    *by_model.entry(model.model.clone()).or_insert(0.0) += model.credits;
+                }
+            }
+        }
+    }
+
+    let models = if has_credits {
+        by_model
+            .into_iter()
+            .map(|(model, credits)| ModelCreditUsage {
+                credits,
+                percent: if credits_sum > 0.0 {
+                    credits / credits_sum * 100.0
+                } else {
+                    0.0
+                },
+                model,
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
+
+    CompleteCreditWindow {
+        start_date,
+        end_date: end_date.to_string(),
+        credits: if is_complete && has_credits {
+            Some(credits_sum)
+        } else {
+            None
+        },
+        models: if is_complete { models } else { Vec::new() },
+        completeness: CreditWindowCompleteness {
+            expected_days: window_days as u32,
+            complete_days: complete_dates.len() as u32,
+            missing_dates,
+            is_complete,
+        },
+    }
+}
+
+fn seven_day_series(
+    end_date: &str,
+    counts_by_date: &BTreeMap<String, WorkspaceUsageCountsDay>,
+    breakdowns_by_date: &BTreeMap<String, TokenUsageBreakdownDay>,
+    today: &str,
+    daily_by_date: &BTreeMap<String, DailyCreditUsage>,
+) -> Vec<SevenDayCreditPoint> {
+    let start_date =
+        crate::date::shift_date_key(end_date, -6).unwrap_or_else(|_| end_date.to_string());
+    let mut series = Vec::new();
+    let mut current = start_date.clone();
+    while current.as_str() <= end_date {
+        if is_complete_day(&current, today, counts_by_date, breakdowns_by_date) {
+            let credits = daily_by_date
+                .get(&current)
+                .and_then(|day| day.credits)
+                .unwrap_or(0.0);
+            series.push(SevenDayCreditPoint {
+                date: current.clone(),
+                credits,
+            });
+        }
+        current = crate::date::shift_date_key(&current, 1).unwrap_or_else(|_| current.clone());
+    }
+    series
 }
 
 /// Percentage-point share below which unsupported model/speed entries in a
@@ -1001,5 +1200,154 @@ mod tests {
         );
         assert!(response.last_30_days.credits.unwrap() > 0.0);
         assert!(response.calibration.status != CalibrationStatus::Invalid);
+    }
+    #[test]
+    fn today_pending_does_not_shorten_last7_complete_window() {
+        // today=08/25 has no breakdown, but 08/18..08/24 are complete.
+        let mut count_rows = Vec::new();
+        let mut breakdowns = Vec::new();
+        for day in 18..=24 {
+            let date = format!("2026-08-{day:02}");
+            count_rows.push(counts(&date, 100_000, 0, 100_000, 200_000));
+            breakdowns.push(breakdown(
+                &date,
+                "percent",
+                vec![("gpt-5.6-luna", "standard", 100.0)],
+            ));
+        }
+        count_rows.push(counts("2026-08-25", 100_000, 0, 100_000, 200_000));
+        let response = build_server_credit_analytics(
+            count_rows,
+            breakdowns,
+            "2026-08-25",
+            "2026-08-01",
+            "2026-08-25",
+        );
+        assert_eq!(response.latest_complete_date.as_deref(), Some("2026-08-24"));
+        assert_eq!(response.last_7_complete_days.completeness.expected_days, 7);
+        assert_eq!(response.last_7_complete_days.completeness.complete_days, 7);
+        assert!(response.last_7_complete_days.completeness.is_complete);
+        assert_eq!(response.last_7_complete_days.start_date, "2026-08-18");
+        assert_eq!(response.last_7_complete_days.end_date, "2026-08-24");
+    }
+
+    #[test]
+    fn last30_complete_window_uses_latest_complete_date() {
+        let mut count_rows = Vec::new();
+        let mut breakdowns = Vec::new();
+        for day in 1..=24 {
+            let date = format!("2026-08-{day:02}");
+            count_rows.push(counts(&date, 100_000, 0, 100_000, 200_000));
+            breakdowns.push(breakdown(
+                &date,
+                "percent",
+                vec![("gpt-5.6-luna", "standard", 100.0)],
+            ));
+        }
+        let response = build_server_credit_analytics(
+            count_rows,
+            breakdowns,
+            "2026-08-25",
+            "2026-08-01",
+            "2026-08-25",
+        );
+        assert_eq!(response.latest_complete_date.as_deref(), Some("2026-08-24"));
+        assert_eq!(response.last_30_complete_days.end_date, "2026-08-24");
+        assert_eq!(
+            response.last_30_complete_days.completeness.expected_days,
+            30
+        );
+        assert_eq!(
+            response.last_30_complete_days.completeness.complete_days,
+            24
+        );
+        assert!(!response.last_30_complete_days.completeness.is_complete);
+    }
+
+    #[test]
+    fn missing_historical_day_fails_completeness() {
+        let mut count_rows = Vec::new();
+        let mut breakdowns = Vec::new();
+        for day in 18..=24 {
+            let date = format!("2026-08-{day:02}");
+            count_rows.push(counts(&date, 100_000, 0, 100_000, 200_000));
+            breakdowns.push(breakdown(
+                &date,
+                "percent",
+                vec![("gpt-5.6-luna", "standard", 100.0)],
+            ));
+        }
+        // Remove 08/21 from breakdowns -> missing day.
+        breakdowns.retain(|day| day.date != "2026-08-21");
+        let response = build_server_credit_analytics(
+            count_rows,
+            breakdowns,
+            "2026-08-25",
+            "2026-08-01",
+            "2026-08-25",
+        );
+        assert_eq!(response.last_7_complete_days.completeness.complete_days, 6);
+        assert!(!response.last_7_complete_days.completeness.is_complete);
+        assert_eq!(response.last_7_complete_days.credits, None);
+        assert!(response
+            .last_7_complete_days
+            .completeness
+            .missing_dates
+            .contains(&"2026-08-21".to_string()));
+    }
+
+    #[test]
+    fn zero_usage_day_counts_as_complete() {
+        let mut count_rows = Vec::new();
+        let mut breakdowns = Vec::new();
+        for day in 18..=24 {
+            let date = format!("2026-08-{day:02}");
+            if day == 21 {
+                count_rows.push(counts(&date, 0, 0, 0, 0));
+                breakdowns.push(breakdown(&date, "percent", vec![]));
+            } else {
+                count_rows.push(counts(&date, 100_000, 0, 100_000, 200_000));
+                breakdowns.push(breakdown(
+                    &date,
+                    "percent",
+                    vec![("gpt-5.6-luna", "standard", 100.0)],
+                ));
+            }
+        }
+        let response = build_server_credit_analytics(
+            count_rows,
+            breakdowns,
+            "2026-08-25",
+            "2026-08-01",
+            "2026-08-25",
+        );
+        assert_eq!(response.last_7_complete_days.completeness.complete_days, 7);
+        assert!(response.last_7_complete_days.completeness.is_complete);
+    }
+
+    #[test]
+    fn previous_7_delta_is_computed_from_complete_windows() {
+        let mut count_rows = Vec::new();
+        let mut breakdowns = Vec::new();
+        for day in 11..=24 {
+            let date = format!("2026-08-{day:02}");
+            count_rows.push(counts(&date, 100_000, 0, 100_000, 200_000));
+            breakdowns.push(breakdown(
+                &date,
+                "percent",
+                vec![("gpt-5.6-luna", "standard", 100.0)],
+            ));
+        }
+        let response = build_server_credit_analytics(
+            count_rows,
+            breakdowns,
+            "2026-08-25",
+            "2026-08-01",
+            "2026-08-25",
+        );
+        assert!(response.last_7_complete_days.completeness.is_complete);
+        assert!(response.previous_7_complete_days.completeness.is_complete);
+        assert!(response.seven_day_delta_percent.is_some());
+        assert_eq!(response.seven_day_series.len(), 7);
     }
 }
