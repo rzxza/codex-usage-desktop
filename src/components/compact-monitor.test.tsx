@@ -182,6 +182,34 @@ describe("CompactMonitor", () => {
     expect(screen.getByText(/43%/)).toBeInTheDocument();
   });
 
+  it("flags STALE immediately after a failed refresh (age-independent)", async () => {
+    vi.useFakeTimers({ now: new Date(), toFake: ["Date", "setInterval", "setTimeout", "clearInterval", "clearTimeout"] });
+    render(<CompactMonitor />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    invokeHandlers.analytics.mockRejectedValue(new Error("down"));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5 * 60_000 + 1);
+    });
+    // Only ~5 minutes have passed: LIVE would be wrong even though data is fresh enough.
+    expect(document.body.textContent).toMatch(/STALE/i);
+    expect(document.body.textContent).not.toMatch(/LIVE/);
+  });
+
+  it("shows a pending placeholder instead of 0/0/0 for today's model split", async () => {
+    const pending = {
+      ...analyticsPayload,
+      status: "pending",
+      today: { date: "2026-08-24", credits: null, isPartial: false, isPending: true, models: [] },
+    };
+    invokeHandlers.analytics.mockResolvedValue(pending);
+    render(<CompactMonitor />);
+    await act(async () => {});
+    expect(document.body.textContent).toContain("Sync pending");
+    expect(document.body.textContent).not.toContain("S 0");
+  });
+
   it("manual refresh refetches both endpoints", async () => {
     vi.useFakeTimers();
     const { container } = render(<CompactMonitor />);

@@ -693,7 +693,8 @@
     "cal_warning": "Warning",
     "cal_invalid": "Invalid",
     "pending": "Sync pending",
-    "partial": "Partial / analytics delayed"
+    "partial": "Partial / analytics delayed",
+    "stale_banner": "Last refresh failed - showing the most recent successful data."
   },
   "compact": {
     "analytics_updated": "Analytics",
@@ -716,6 +717,7 @@
     "today_credits": "Today",
     "toggle_tray": "Compact Monitor",
     "unavailable": "Unavailable",
-    "weekly": "Weekly"
+    "weekly": "Weekly",
+    "loading": "SYNCING"
   }
 }

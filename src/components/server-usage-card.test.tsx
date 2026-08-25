@@ -83,6 +83,13 @@ describe("ServerUsageCard", () => {
     expect(screen.getByText("Derived Credits")).toBeInTheDocument();
   });
 
+  it("keeps values on screen with a stale banner when refresh fails", () => {
+    render(<ServerUsageCard analytics={analytics} error="network hiccup" />);
+    // Numbers stay; banner explains data is from the last successful sync.
+    expect(screen.getByText(/1,820/)).toBeInTheDocument();
+    expect(screen.getByText("Last refresh failed - showing the most recent successful data.")).toBeInTheDocument();
+  });
+
   it("shows invalid status when calibration is unstable", () => {
     render(
       <ServerUsageCard

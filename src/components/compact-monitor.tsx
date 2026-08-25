@@ -19,13 +19,17 @@ const ANALYTICS_REFRESH_MS = 5 * 60_000;
 // values stay on screen (design doc v0.2 section 4).
 const STALE_AFTER_MS = 15 * 60_000;
 
-type FeedFreshness = "live" | "stale" | "offline";
+type FeedFreshness = "loading" | "live" | "stale" | "offline";
 
+// Review rules: a failed attempt marks a previously-successful feed stale
+// immediately; 15min without success is only the age-based stale warning.
+// No data + no settled attempt = loading; no data + failure = offline.
 function feedFreshness(error: string | null, updatedAt: number | null, now: number): FeedFreshness {
-  if (updatedAt !== null) {
-    return now - updatedAt > STALE_AFTER_MS ? "stale" : "live";
+  if (updatedAt === null) {
+    return error ? "offline" : "loading";
   }
-  return error ? "offline" : "live";
+  if (error) return "stale";
+  return now - updatedAt > STALE_AFTER_MS ? "stale" : "live";
 }
 
 function useNow(intervalMs = 1000) {
@@ -209,6 +213,7 @@ export function CompactMonitor() {
   // which is Today — not the full 30-day aggregate.
   const modelPercent = (model: string) =>
     analytics?.today?.models.find((entry) => entry.model === model)?.percent ?? 0;
+  const todayHasModels = (analytics?.today?.models?.length ?? 0) > 0;
 
   return (
     <div className="flex h-screen select-none flex-col overflow-hidden bg-background text-foreground">
@@ -228,7 +233,9 @@ export function CompactMonitor() {
               ? "offline"
               : quotaState === "stale" || analyticsState === "stale"
                 ? "stale"
-                : "live";
+                : quotaState === "loading" || analyticsState === "loading"
+                  ? "loading"
+                  : "live";
           return (
             <span
               className={cn(
@@ -347,15 +354,25 @@ export function CompactMonitor() {
             <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               {t("compact.model_split")}
             </p>
-            <span className="text-[10px] text-muted-foreground">
-              S {formatNumber(modelPercent("gpt-5.6-sol"))} · L {formatNumber(modelPercent("gpt-5.6-luna"))} · T {formatNumber(modelPercent("gpt-5.6-terra"))}
-            </span>
+            {todayHasModels ? (
+              <span className="text-[10px] text-muted-foreground">
+                S {formatNumber(modelPercent("gpt-5.6-sol"))} · L {formatNumber(modelPercent("gpt-5.6-luna"))} · T {formatNumber(modelPercent("gpt-5.6-terra"))}
+              </span>
+            ) : null}
           </div>
-          <div className="mt-1.5 flex h-2 w-full overflow-hidden rounded-full bg-muted/40">
-            <div className="h-full bg-indigo-500" style={{ width: `${Math.min(100, modelPercent("gpt-5.6-sol"))}%` }} />
-            <div className="h-full bg-teal-500" style={{ width: `${Math.min(100, modelPercent("gpt-5.6-luna"))}%` }} />
-            <div className="h-full bg-sky-500" style={{ width: `${Math.min(100, modelPercent("gpt-5.6-terra"))}%` }} />
-          </div>
+          {todayHasModels ? (
+            <div className="mt-1.5 flex h-2 w-full overflow-hidden rounded-full bg-muted/40">
+              <div className="h-full bg-indigo-500" style={{ width: `${Math.min(100, modelPercent("gpt-5.6-sol"))}%` }} />
+              <div className="h-full bg-teal-500" style={{ width: `${Math.min(100, modelPercent("gpt-5.6-luna"))}%` }} />
+              <div className="h-full bg-sky-500" style={{ width: `${Math.min(100, modelPercent("gpt-5.6-terra"))}%` }} />
+            </div>
+          ) : (
+            <p className="mt-1.5 text-[10px] text-muted-foreground">
+              {today?.isPending || analytics?.status === "pending"
+                ? t("compact.pending")
+                : t("compact.unavailable")}
+            </p>
+          )}
         </div>
 
         <div className="mt-auto flex items-center justify-between border-t border-border/50 px-0.5 pt-2 text-[10px] text-muted-foreground">

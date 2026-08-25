@@ -86,7 +86,10 @@ export function SettingsPage({
     }
   };
   const [compactAutoStart, setCompactAutoStart] = useState(() => readCompactFlag("compact_autostart"));
-  const [compactAlwaysOnTop, setCompactAlwaysOnTop] = useState(() => readCompactFlag("compact_always_on_top"));
+  // Missing key means default-on, matching window config and compact init.
+  const [compactAlwaysOnTop, setCompactAlwaysOnTop] = useState(
+    () => readCompactFlag("compact_always_on_top") || localStorage.getItem("compact_always_on_top") === null,
+  );
   const persistCompactFlag = (key: string, value: boolean) => {
     try {
       localStorage.setItem(key, value ? "1" : "0");

@@ -23,22 +23,12 @@ export function ServerUsageCard({ analytics, error, isLoading }: ServerUsageCard
     );
   }
 
-  if (error) {
-    return (
-      <Card className="rounded-lg border-warning/30">
-        <CardContent className="p-4">
-          <p className="text-sm font-medium text-warning">{t("server_usage.unavailable")}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{error}</p>
-        </CardContent>
-      </Card>
-    );
-  }
-
   if (!analytics) {
     return (
-      <Card className="rounded-lg">
+      <Card className="rounded-lg border-border/70">
         <CardContent className="p-4">
-          <p className="text-sm text-muted-foreground">{t("server_usage.unavailable")}</p>
+          <p className="text-sm font-medium text-muted-foreground">{t("server_usage.unavailable")}</p>
+          {error ? <p className="mt-1 text-xs text-muted-foreground">{error}</p> : null}
         </CardContent>
       </Card>
     );
@@ -80,6 +70,12 @@ export function ServerUsageCard({ analytics, error, isLoading }: ServerUsageCard
             {statusLabel}
           </span>
         </div>
+
+        {error ? (
+          <p className="mt-3 rounded-md border border-warning/30 bg-warning/10 px-2.5 py-1.5 text-[11px] text-warning">
+            {t("server_usage.stale_banner")}
+          </p>
+        ) : null}
 
         <div className="mt-4 grid gap-4 sm:grid-cols-3">
           <div className="rounded-lg border border-border/60 bg-background/40 p-3">

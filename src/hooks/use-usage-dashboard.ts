@@ -309,7 +309,7 @@ export function useUsageDashboard() {
       setServerAnalytics(data);
       setServerAnalyticsError(null);
     } catch (serverError) {
-      setServerAnalytics(null);
+      // Keep the last successful payload on screen; the card flags staleness.
       setServerAnalyticsError(errorMessage(serverError, "Failed to load server credit analytics."));
     } finally {
       setIsServerAnalyticsLoading(false);

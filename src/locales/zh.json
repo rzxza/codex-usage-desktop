@@ -698,7 +698,8 @@
     "cal_warning": "警告",
     "cal_invalid": "不稳定",
     "pending": "等待同步",
-    "partial": "部分 / 分析延迟"
+    "partial": "部分 / 分析延迟",
+    "stale_banner": "上次刷新失败——显示的是最近一次成功数据。"
   },
   "compact": {
     "analytics_updated": "分析",
@@ -721,6 +722,7 @@
     "today_credits": "今日",
     "toggle_tray": "紧凑监控",
     "unavailable": "不可用",
-    "weekly": "每周"
+    "weekly": "每周",
+    "loading": "同步中"
   }
 }
