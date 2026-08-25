@@ -24,6 +24,20 @@ type FeedFreshness = "loading" | "live" | "stale" | "offline";
 // Review rules: a failed attempt marks a previously-successful feed stale
 // immediately; 15min without success is only the age-based stale warning.
 // No data + no settled attempt = loading; no data + failure = offline.
+export type OverallFeedState = "live" | "loading" | "stale" | "degraded" | "offline";
+
+// Per-feed states never include "degraded"; it only emerges from the merge.
+const FEED_SEVERITY: Record<FeedFreshness, number> = { live: 0, loading: 1, stale: 2, offline: 3 };
+
+/** Merge per-feed states; severity ordering guarantees offline+working can
+ * never collapse back to LIVE. */
+export function overallFeedState(quota: FeedFreshness, analytics: FeedFreshness): OverallFeedState {
+  if (quota === "offline" && analytics === "offline") return "offline";
+  if (quota === "offline" || analytics === "offline") return "degraded";
+  const worst = FEED_SEVERITY[quota] >= FEED_SEVERITY[analytics] ? quota : analytics;
+  return worst as OverallFeedState;
+}
+
 function feedFreshness(error: string | null, updatedAt: number | null, now: number): FeedFreshness {
   if (updatedAt === null) {
     return error ? "offline" : "loading";
@@ -228,20 +242,16 @@ export function CompactMonitor() {
         {(() => {
           const quotaState = feedFreshness(limitsError, limitsUpdatedAt, now);
           const analyticsState = feedFreshness(analyticsError, analyticsUpdatedAt, now);
-          const overall =
-            quotaState === "offline" && analyticsState === "offline"
-              ? "offline"
-              : quotaState === "stale" || analyticsState === "stale"
-                ? "stale"
-                : quotaState === "loading" || analyticsState === "loading"
-                  ? "loading"
-                  : "live";
+          // One feed fully offline while the other still works is DEGRADED,
+          // never LIVE - the pill must not contradict a visible Sync Error.
+          const overall = overallFeedState(quotaState, analyticsState);
           return (
             <span
               className={cn(
                 "ml-1 inline-flex items-center gap-1 rounded-full border px-1.5 py-px text-[9px] font-bold uppercase tracking-wider",
                 overall === "live" && "border-success/30 bg-success/10 text-success",
                 overall === "stale" && "border-warning/30 bg-warning/10 text-warning",
+                overall === "degraded" && "border-orange-500/30 bg-orange-500/10 text-orange-500",
                 overall === "offline" && "border-error/30 bg-error/10 text-error",
               )}
             >

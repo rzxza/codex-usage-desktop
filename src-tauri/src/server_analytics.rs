@@ -44,7 +44,76 @@ pub(crate) struct TokenUsageBreakdownModel {
     pub credits: f64,
 }
 
+/// In-process TTL cache so the main window and the compact window share one
+/// WHAM analytics result instead of double-hitting the internal endpoint on
+/// their overlapping refresh cycles. Single-flight via a dedicated mutex:
+/// waiters re-check the cache after acquiring it and usually return for free.
+const ANALYTICS_TTL: std::time::Duration = std::time::Duration::from_secs(240);
+static ANALYTICS_CACHE: std::sync::OnceLock<TtlCache<ServerCreditAnalyticsResponse>> =
+    std::sync::OnceLock::new();
+static ANALYTICS_FLIGHT: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+struct TtlCache<T> {
+    cell: std::sync::Mutex<Option<(std::time::Instant, T)>>,
+}
+
+impl<T: Clone> TtlCache<T> {
+    const fn new() -> Self {
+        Self {
+            cell: std::sync::Mutex::new(None),
+        }
+    }
+
+    fn get(&self, ttl: std::time::Duration) -> Option<T> {
+        let guard = self.cell.lock().unwrap_or_else(|e| e.into_inner());
+        guard
+            .as_ref()
+            .filter(|(at, _)| at.elapsed() < ttl)
+            .map(|(_, value)| value.clone())
+    }
+
+    fn store(&self, value: T) {
+        let mut guard = self.cell.lock().unwrap_or_else(|e| e.into_inner());
+        *guard = Some((std::time::Instant::now(), value));
+    }
+}
+
+/// Generic TTL + single-flight lookup. `load` runs at most once per TTL
+/// window even under concurrent callers.
+fn cached_lookup<T, F>(
+    cache: &TtlCache<T>,
+    flight: &std::sync::Mutex<()>,
+    ttl: std::time::Duration,
+    load: F,
+) -> Result<T, String>
+where
+    T: Clone,
+    F: FnOnce() -> Result<T, String>,
+{
+    if let Some(value) = cache.get(ttl) {
+        return Ok(value);
+    }
+    let _in_flight = flight.lock().unwrap_or_else(|e| e.into_inner());
+    // Another caller may have refreshed while we waited on the flight lock.
+    if let Some(value) = cache.get(ttl) {
+        return Ok(value);
+    }
+    let value = load()?;
+    cache.store(value.clone());
+    Ok(value)
+}
+
 pub fn fetch_server_credit_analytics() -> Result<ServerCreditAnalyticsResponse, String> {
+    let cache = ANALYTICS_CACHE.get_or_init(TtlCache::new);
+    cached_lookup(
+        cache,
+        &ANALYTICS_FLIGHT,
+        ANALYTICS_TTL,
+        fetch_server_credit_analytics_uncached,
+    )
+}
+
+fn fetch_server_credit_analytics_uncached() -> Result<ServerCreditAnalyticsResponse, String> {
     let timezone = date::resolve_app_timezone();
     let today = date::date_key_in_timezone(chrono::Utc::now(), &timezone);
     let start_date = date::shift_date_key(&today, -29)?;
@@ -219,6 +288,77 @@ fn parse_token_usage_breakdown(body: &str) -> Result<Vec<TokenUsageBreakdownDay>
 
 #[cfg(test)]
 mod tests {
+    use super::{cached_lookup, TtlCache};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    #[test]
+    fn serves_fresh_value_without_invoking_loader() {
+        let cache = TtlCache::new();
+        cache.store("fresh".to_string());
+        let calls = AtomicUsize::new(0);
+        let value = cached_lookup(&cache, &Default::default(), Duration::from_secs(60), || {
+            calls.fetch_add(1, Ordering::SeqCst);
+            Err("must not be called".to_string())
+        })
+        .unwrap();
+        assert_eq!(value, "fresh");
+        assert_eq!(calls.load(Ordering::SeqCst), 0);
+    }
+
+    #[test]
+    fn expired_value_triggers_single_reload_under_concurrency() {
+        let cache: Arc<TtlCache<String>> = Arc::new(TtlCache::new());
+        let flight: Arc<std::sync::Mutex<()>> = Arc::new(std::sync::Mutex::new(()));
+        let calls = Arc::new(AtomicUsize::new(0));
+        let mut handles = Vec::new();
+        for _ in 0..4 {
+            let cache = Arc::clone(&cache);
+            let flight = Arc::clone(&flight);
+            let calls = Arc::clone(&calls);
+            handles.push(std::thread::spawn(move || {
+                cached_lookup(&cache, &flight, Duration::from_millis(50), || {
+                    calls.fetch_add(1, Ordering::SeqCst);
+                    std::thread::sleep(Duration::from_millis(80)); // widen the race
+                    Ok("loaded".to_string())
+                })
+            }));
+        }
+        for handle in handles {
+            assert_eq!(handle.join().unwrap().unwrap(), "loaded");
+        }
+        assert_eq!(
+            calls.load(Ordering::SeqCst),
+            1,
+            "single-flight must collapse concurrent misses into one load"
+        );
+    }
+
+    #[test]
+    fn reloads_once_ttl_has_elapsed() {
+        let cache = TtlCache::new();
+        let flight = std::sync::Mutex::new(());
+        let calls = AtomicUsize::new(0);
+        cache.store("v1".to_string());
+        std::thread::sleep(Duration::from_millis(80)); // outlive the 50ms ttl
+        let value = cached_lookup(&cache, &flight, Duration::from_millis(50), || {
+            calls.fetch_add(1, Ordering::SeqCst);
+            Ok("v2".to_string())
+        })
+        .unwrap();
+        assert_eq!(value, "v2");
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        // Now fresh again - the loader must stay idle.
+        cached_lookup(&cache, &flight, Duration::from_millis(50), || {
+            calls.fetch_add(1, Ordering::SeqCst);
+            Err("must not be called".to_string())
+        })
+        .unwrap();
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+    }
+
+    // Existing analytics tests operate through `super::*`.
     use super::*;
 
     fn counts_day(date: &str) -> WorkspaceUsageCountsDay {

@@ -641,7 +641,8 @@
     "compact_autostart": "Show on app launch",
     "compact_autostart_desc": "Open the compact monitor automatically when the app starts.",
     "compact_always_on_top": "Always on top",
-    "compact_always_on_top_desc": "Keep the compact monitor above other windows."
+    "compact_always_on_top_desc": "Keep the compact monitor above other windows.",
+    "updates_disabled": "Auto-update is disabled in this RC build."
   },
   "logs": {
     "title": "Real-Time System Logs",
@@ -694,7 +695,8 @@
     "cal_invalid": "Invalid",
     "pending": "Sync pending",
     "partial": "Partial / analytics delayed",
-    "stale_banner": "Last refresh failed - showing the most recent successful data."
+    "stale_banner": "Last refresh failed - showing the most recent successful data.",
+    "refreshing": "Refreshing…"
   },
   "compact": {
     "analytics_updated": "Analytics",
@@ -718,6 +720,7 @@
     "toggle_tray": "Compact Monitor",
     "unavailable": "Unavailable",
     "weekly": "Weekly",
-    "loading": "SYNCING"
+    "loading": "SYNCING",
+    "degraded": "DEGRADED"
   }
 }

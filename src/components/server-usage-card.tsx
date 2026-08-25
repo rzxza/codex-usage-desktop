@@ -13,7 +13,9 @@ type ServerUsageCardProps = {
 export function ServerUsageCard({ analytics, error, isLoading }: ServerUsageCardProps) {
   const { t } = useTranslation();
 
-  if (isLoading) {
+  // Stale-while-revalidate: only show the skeleton before first data;
+  // background refreshes keep values on screen.
+  if (isLoading && !analytics) {
     return (
       <Card className="rounded-lg">
         <CardContent className="p-4">
@@ -70,6 +72,10 @@ export function ServerUsageCard({ analytics, error, isLoading }: ServerUsageCard
             {statusLabel}
           </span>
         </div>
+
+        {isLoading && analytics ? (
+          <p className="text-[11px] text-muted-foreground">{t("server_usage.refreshing")}</p>
+        ) : null}
 
         {error ? (
           <p className="mt-3 rounded-md border border-warning/30 bg-warning/10 px-2.5 py-1.5 text-[11px] text-warning">

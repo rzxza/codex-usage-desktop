@@ -646,7 +646,8 @@
     "compact_autostart": "启动时显示",
     "compact_autostart_desc": "应用启动时自动打开紧凑监视器。",
     "compact_always_on_top": "总是置顶",
-    "compact_always_on_top_desc": "让紧凑监视器始终保持在其他窗口之上。"
+    "compact_always_on_top_desc": "让紧凑监视器始终保持在其他窗口之上。",
+    "updates_disabled": "此 RC 版本已禁用自动更新。"
   },
   "logs": {
     "title": "实时系统日志",
@@ -699,7 +700,8 @@
     "cal_invalid": "不稳定",
     "pending": "等待同步",
     "partial": "部分 / 分析延迟",
-    "stale_banner": "上次刷新失败——显示的是最近一次成功数据。"
+    "stale_banner": "上次刷新失败——显示的是最近一次成功数据。",
+    "refreshing": "刷新中…"
   },
   "compact": {
     "analytics_updated": "分析",
@@ -723,6 +725,7 @@
     "toggle_tray": "紧凑监控",
     "unavailable": "不可用",
     "weekly": "每周",
-    "loading": "同步中"
+    "loading": "同步中",
+    "degraded": "降级"
   }
 }

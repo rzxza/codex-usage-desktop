@@ -5,6 +5,7 @@ import type { UpdateCheckResponse, CodexLimitsResponse } from "@/lib/api";
 import type { UpdateInstallStatus, UpdateProgressState } from "@/hooks/use-usage-dashboard";
 import { hasSubscription } from "./codex-limits-card";
 import tauriConfig from "../../src-tauri/tauri.conf.json";
+import { UPDATES_ENABLED } from "@/lib/constants";
 import { useTranslation } from "react-i18next";
 import { useMemo, useState } from "react";
 import {
@@ -393,6 +394,9 @@ export function SettingsPage({
                 <p className="text-sm text-muted-foreground">
                   v{updateInfo?.currentVersion || tauriConfig.version}
                 </p>
+                {!UPDATES_ENABLED ? (
+                  <p className="text-xs text-muted-foreground">{t("settings.updates_disabled")}</p>
+                ) : null}
               </div>
               <div className="flex flex-col items-end gap-2">
                 <Button 

@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, act } from "@testing-library/react";
 import i18n from "../i18n";
-import { CompactMonitor } from "./compact-monitor";
+import { CompactMonitor, overallFeedState } from "./compact-monitor";
 
 const invokeHandlers = vi.hoisted(() => ({
   limits: vi.fn(),
@@ -165,6 +165,23 @@ describe("CompactMonitor", () => {
     // Under fake timers waitFor itself would freeze; assert synchronously.
     expect(document.body.textContent).toMatch(/STALE/i);
     expect(document.body.textContent).toContain("≈707");
+  });
+
+  it("shows DEGRADED, not LIVE, when quota is offline and analytics is live", async () => {
+    invokeHandlers.limits.mockRejectedValue(new Error("limits down"));
+    render(<CompactMonitor />);
+    await screen.findAllByText(/≈/);
+    expect(document.body.textContent).toContain("DEGRADED");
+    expect(document.body.textContent).not.toMatch(/LIVE/);
+  });
+
+  it("overall feed state never reports LIVE when any feed is offline", () => {
+    expect(overallFeedState("offline", "live")).toBe("degraded");
+    expect(overallFeedState("live", "offline")).toBe("degraded");
+    expect(overallFeedState("offline", "offline")).toBe("offline");
+    expect(overallFeedState("live", "live")).toBe("live");
+    expect(overallFeedState("live", "stale")).toBe("stale");
+    expect(overallFeedState("loading", "live")).toBe("loading");
   });
 
   it("quota failure does not hide analytics data", async () => {
