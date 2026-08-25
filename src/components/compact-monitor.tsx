@@ -8,6 +8,7 @@ import {
   fetchCodexLimits,
   fetchServerCreditAnalytics,
   type CodexLimitsResponse,
+  type CompleteCreditWindow,
   type ServerCreditAnalyticsResponse,
 } from "@/lib/api";
 import { formatNumber } from "@/lib/formatters";
@@ -70,6 +71,27 @@ function oneDecimal(value: number): string {
 function formatCreditValue(value: number | null | undefined): string {
   if (value === null || value === undefined) return "—";
   return `≈${formatNumber(value)}`;
+}
+
+function WindowDiagnostic({
+  window,
+  t,
+}: {
+  window: CompleteCreditWindow;
+  t: (key: string, options?: any) => string;
+}) {
+  if (window.completeness.isComplete) return null;
+  const { completeDays, expectedDays, missingDates } = window.completeness;
+  const known = window.knownCredits;
+  return (
+    <p className="mt-1 text-[10px] leading-tight text-warning">
+      {known !== null && known !== undefined
+        ? `${t("compact.known")} ≈${formatNumber(known)} · `
+        : ""}
+      {completeDays}/{expectedDays} {t("compact.day_short")}
+      {missingDates.length > 0 ? ` · ${t("compact.missing")}: ${missingDates.join(", ")}` : ""}
+    </p>
+  );
 }
 
 function Sparkline({ points }: { points: Array<{ date: string; credits: number }> }) {
@@ -412,7 +434,7 @@ export function CompactMonitor() {
             </p>
             <p className="mt-1 font-mono text-sm font-bold tabular-nums">{formatCreditValue(last7?.credits)}</p>
             {last7 && !last7.completeness.isComplete ? (
-              <p className="text-[10px] text-warning">{t("compact.incomplete")}</p>
+              <WindowDiagnostic window={last7} t={t} />
             ) : null}
           </div>
           <div className="rounded-lg border border-border/60 bg-surface p-2.5">
@@ -421,7 +443,7 @@ export function CompactMonitor() {
             </p>
             <p className="mt-1 font-mono text-sm font-bold tabular-nums">{formatCreditValue(last30?.credits)}</p>
             {last30 && !last30.completeness.isComplete ? (
-              <p className="text-[10px] text-warning">{t("compact.incomplete")}</p>
+              <WindowDiagnostic window={last30} t={t} />
             ) : null}
           </div>
         </div>

@@ -706,7 +706,10 @@
     "last_7_complete": "最近 7 个完整日",
     "last_30_complete": "最近 30 个完整日",
     "incomplete": "数据不完整",
-    "latest_complete_date": "最近完整日"
+    "latest_complete_date": "最近完整日",
+    "known": "已知",
+    "missing": "缺",
+    "day_short": "日"
   },
   "compact": {
     "analytics_updated": "分析",
@@ -743,6 +746,9 @@
     "drag": "拖动",
     "hide": "隐藏",
     "opacity": "透明度",
-    "incomplete": "不完整"
+    "incomplete": "不完整",
+    "known": "已知",
+    "missing": "缺",
+    "day_short": "日"
   }
 }

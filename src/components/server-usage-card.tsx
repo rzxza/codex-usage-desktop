@@ -1,5 +1,6 @@
 import { Card, CardContent } from "@/components/ui/card";
 import type { ServerCreditAnalyticsResponse } from "@/lib/api";
+import { formatNumber } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
 
@@ -103,7 +104,15 @@ export function ServerUsageCard({ analytics, error, isLoading }: ServerUsageCard
               {formatCredits(last7.credits)}
             </p>
             {!last7.completeness.isComplete ? (
-              <p className="mt-1 text-[11px] font-medium text-warning">{t("server_usage.incomplete")}</p>
+              <div className="mt-1 text-[11px] font-medium leading-tight text-warning">
+                {last7.knownCredits !== null && last7.knownCredits !== undefined
+                  ? `${t("server_usage.known")} ≈${formatNumber(last7.knownCredits)} · `
+                  : ""}
+                {last7.completeness.completeDays}/{last7.completeness.expectedDays} {t("server_usage.day_short")}
+                {last7.completeness.missingDates.length > 0
+                  ? ` · ${t("server_usage.missing")}: ${last7.completeness.missingDates.join(", ")}`
+                  : ""}
+              </div>
             ) : null}
           </div>
 
@@ -115,7 +124,15 @@ export function ServerUsageCard({ analytics, error, isLoading }: ServerUsageCard
               {formatCredits(last30.credits)}
             </p>
             {!last30.completeness.isComplete ? (
-              <p className="mt-1 text-[11px] font-medium text-warning">{t("server_usage.incomplete")}</p>
+              <div className="mt-1 text-[11px] font-medium leading-tight text-warning">
+                {last30.knownCredits !== null && last30.knownCredits !== undefined
+                  ? `${t("server_usage.known")} ≈${formatNumber(last30.knownCredits)} · `
+                  : ""}
+                {last30.completeness.completeDays}/{last30.completeness.expectedDays} {t("server_usage.day_short")}
+                {last30.completeness.missingDates.length > 0
+                  ? ` · ${t("server_usage.missing")}: ${last30.completeness.missingDates.join(", ")}`
+                  : ""}
+              </div>
             ) : null}
           </div>
         </div>

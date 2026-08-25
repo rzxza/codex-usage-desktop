@@ -701,7 +701,10 @@
     "last_7_complete": "Last 7 complete days",
     "last_30_complete": "Last 30 complete days",
     "incomplete": "Data incomplete",
-    "latest_complete_date": "Latest complete"
+    "latest_complete_date": "Latest complete",
+    "known": "Known",
+    "missing": "Missing",
+    "day_short": "d"
   },
   "compact": {
     "analytics_updated": "Analytics",
@@ -738,6 +741,9 @@
     "drag": "Drag",
     "hide": "Hide",
     "opacity": "Opacity",
-    "incomplete": "Incomplete"
+    "incomplete": "Incomplete",
+    "known": "Known",
+    "missing": "Missing",
+    "day_short": "d"
   }
 }

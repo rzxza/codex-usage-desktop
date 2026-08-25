@@ -196,6 +196,7 @@ export type CompleteCreditWindow = {
   startDate: string;
   endDate: string;
   credits: number | null;
+  knownCredits?: number | null;
   models: ModelCreditUsage[];
   completeness: CreditWindowCompleteness;
 };

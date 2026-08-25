@@ -535,6 +535,7 @@ pub struct CompleteCreditWindow {
     pub start_date: String,
     pub end_date: String,
     pub credits: Option<f64>,
+    pub known_credits: Option<f64>,
     pub models: Vec<ModelCreditUsage>,
     pub completeness: CreditWindowCompleteness,
 }

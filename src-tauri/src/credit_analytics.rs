@@ -243,19 +243,17 @@ fn is_complete_day(
     let Some(counts_day) = counts_by_date.get(date) else {
         return false;
     };
+    let total_tokens = token_total(counts_day);
+    // A zero-usage day is complete as long as the counts row exists; it does
+    // not need a token-usage breakdown row.
+    if total_tokens == 0 {
+        return true;
+    }
     let Some(breakdown_day) = breakdowns_by_date.get(date) else {
         return false;
     };
     if breakdown_day.units != "percent" {
         return false;
-    }
-    let total_tokens = token_total(counts_day);
-    if total_tokens == 0 {
-        return breakdown_day.models.is_empty()
-            || breakdown_day
-                .models
-                .iter()
-                .all(|model| model.credits == 0.0);
     }
     let Some((known, _)) = usable_models(&breakdown_day.models) else {
         return false;
@@ -327,6 +325,7 @@ fn complete_window(
         } else {
             None
         },
+        known_credits: if has_credits { Some(credits_sum) } else { None },
         models: if is_complete { models } else { Vec::new() },
         completeness: CreditWindowCompleteness {
             expected_days: window_days as u32,
@@ -1421,6 +1420,45 @@ mod tests {
         );
         assert_eq!(response.last_7_complete_days.completeness.complete_days, 7);
         assert!(response.last_7_complete_days.completeness.is_complete);
+    }
+
+    #[test]
+    fn zero_token_day_without_breakdown_is_complete() {
+        let mut count_rows = Vec::new();
+        let mut breakdowns = Vec::new();
+        for day in 18..=24 {
+            let date = format!("2026-08-{day:02}");
+            if day == 21 {
+                // Counts row exists and is zero; no breakdown row at all.
+                count_rows.push(counts(&date, 0, 0, 0, 0));
+            } else {
+                count_rows.push(counts(&date, 100_000, 0, 100_000, 200_000));
+                breakdowns.push(breakdown(
+                    &date,
+                    "percent",
+                    vec![("gpt-5.6-luna", "standard", 100.0)],
+                ));
+            }
+        }
+        let response = build_server_credit_analytics(
+            count_rows,
+            breakdowns,
+            "2026-08-25",
+            "2026-08-01",
+            "2026-08-25",
+        );
+        assert_eq!(response.last_7_complete_days.completeness.complete_days, 7);
+        assert!(response.last_7_complete_days.completeness.is_complete);
+        assert_eq!(
+            response
+                .last_7_complete_days
+                .completeness
+                .missing_dates
+                .len(),
+            0
+        );
+        assert!(response.last_7_complete_days.credits.is_some());
+        assert!(response.last_7_complete_days.known_credits.is_some());
     }
 
     #[test]
