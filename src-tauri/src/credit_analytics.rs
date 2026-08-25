@@ -10,9 +10,6 @@ use crate::{
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 
-const LUNA_INPUT_PER_MILLION: f64 = 5.0;
-const LUNA_CACHED_INPUT_PER_MILLION: f64 = 0.5;
-const LUNA_OUTPUT_PER_MILLION: f64 = 30.0;
 const MILLION: f64 = 1_000_000.0;
 
 pub fn build_server_credit_analytics(
@@ -154,10 +151,12 @@ fn token_total(day: &WorkspaceUsageCountsDay) -> i64 {
         + day.totals.text_output_tokens
 }
 
+/// Luna-equivalent base credits for a day, computed strictly from the shared
+/// rate profile in `credit_rates` (single source of truth).
 fn base_credits(day: &WorkspaceUsageCountsDay) -> f64 {
-    (LUNA_INPUT_PER_MILLION * day.totals.uncached_text_input_tokens as f64
-        + LUNA_CACHED_INPUT_PER_MILLION * day.totals.cached_text_input_tokens as f64
-        + LUNA_OUTPUT_PER_MILLION * day.totals.text_output_tokens as f64)
+    (credit_rates::BASE_INPUT_PER_MILLION * day.totals.uncached_text_input_tokens as f64
+        + credit_rates::BASE_CACHED_INPUT_PER_MILLION * day.totals.cached_text_input_tokens as f64
+        + credit_rates::BASE_OUTPUT_PER_MILLION * day.totals.text_output_tokens as f64)
         / MILLION
 }
 
@@ -921,6 +920,50 @@ mod tests {
                 "{date}: 7d {day_7d} != 30d {day_30d}"
             );
         }
+    }
+
+    #[test]
+    fn calibrates_to_real_account_golden_value() {
+        // Hand-verified against live WHAM data for 2026-08-18:
+        // uncached=11_050_013 cached=208_925_824 output=942_290 with
+        // sol 20.476773774943236% terra 0.16138313406044213% luna 0.8336911893453841%
+        // => median K ~= 112.63804 under included_usage_equivalent_v1.
+        let tokens = counts("2026-08-18", 11_050_013, 208_925_824, 942_290, 220_918_127);
+        let models = vec![
+            ("gpt-5.6-sol", "standard", 20.476_773_774_943_236_f64),
+            ("gpt-5.6-terra", "standard", 0.161_383_134_060_442_13),
+            ("gpt-5.6-luna", "standard", 0.833_691_189_345_384_1),
+        ];
+        let counts = vec![
+            tokens.clone(),
+            counts("2026-08-17", 11_050_013, 208_925_824, 942_290, 220_918_127),
+        ];
+        let breakdowns = vec![
+            breakdown("2026-08-18", "percent", models.clone()),
+            breakdown("2026-08-17", "percent", models),
+        ];
+        let response = build_server_credit_analytics(
+            counts,
+            breakdowns,
+            "2026-08-19",
+            "2026-08-17",
+            "2026-08-19",
+        );
+        // Two agreeing samples cap at Warning even when deviation is zero.
+        assert_eq!(response.calibration.status, CalibrationStatus::Warning);
+
+        let k = response.calibration.k.expect("k calibrated");
+        assert!((k - 112.638_04).abs() < 5e-5, "golden K drifted: {k}");
+
+        let expected_day =
+            k * (20.476_773_774_943_236 + 0.161_383_134_060_442_13 + 0.833_691_189_345_384_1);
+        let day = response
+            .daily
+            .iter()
+            .find(|d| d.date == "2026-08-18")
+            .unwrap();
+        let credits = day.credits.expect("day priced");
+        assert!((credits - expected_day).abs() < 1e-6);
     }
 
     #[test]

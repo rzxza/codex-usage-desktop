@@ -3,18 +3,28 @@
 pub struct ModelRateEntry {
     pub model: &'static str,
     pub speed: &'static str,
-    pub effective_date: &'static str,
     pub input_per_million_tokens: f64,
     pub cached_input_per_million_tokens: f64,
     pub output_per_million_tokens: f64,
     pub base_multiplier: u8,
 }
 
+/// Single rate profile used by WHAM normalization: it expresses how many
+/// plan-included "credits equivalent" one token costs per model. It is NOT a
+/// purchased-credit billing rate (promotional purchase pricing differs).
+pub const RATE_PROFILE_ID: &str = "included_usage_equivalent_v1";
+pub const RATE_PROFILE_PURPOSE: &str =
+    "Included-plan usage normalization for WHAM reverse derivation; not purchased-credit billing.";
+
+/// Luna is the base vector of the profile; every other entry is a multiple.
+pub const BASE_INPUT_PER_MILLION: f64 = 5.0;
+pub const BASE_CACHED_INPUT_PER_MILLION: f64 = 0.5;
+pub const BASE_OUTPUT_PER_MILLION: f64 = 30.0;
+
 pub const MODEL_RATE_TABLE: [ModelRateEntry; 3] = [
     ModelRateEntry {
         model: "gpt-5.6-sol",
         speed: "standard",
-        effective_date: "2026-08-21",
         input_per_million_tokens: 125.0,
         cached_input_per_million_tokens: 12.5,
         output_per_million_tokens: 750.0,
@@ -23,7 +33,6 @@ pub const MODEL_RATE_TABLE: [ModelRateEntry; 3] = [
     ModelRateEntry {
         model: "gpt-5.6-terra",
         speed: "standard",
-        effective_date: "2026-08-21",
         input_per_million_tokens: 50.0,
         cached_input_per_million_tokens: 5.0,
         output_per_million_tokens: 300.0,
@@ -32,7 +41,6 @@ pub const MODEL_RATE_TABLE: [ModelRateEntry; 3] = [
     ModelRateEntry {
         model: "gpt-5.6-luna",
         speed: "standard",
-        effective_date: "2026-08-21",
         input_per_million_tokens: 5.0,
         cached_input_per_million_tokens: 0.5,
         output_per_million_tokens: 30.0,
@@ -41,7 +49,7 @@ pub const MODEL_RATE_TABLE: [ModelRateEntry; 3] = [
 ];
 
 pub const RATE_TABLE_SOURCE: &str =
-    "OpenAI Codex rate card (https://help.openai.com/en/articles/20001106-codex-rate-card)";
+    "OpenAI Codex rate card (https://help.openai.com/en/articles/20001106-codex-rate-card), included-usage column";
 pub const RATE_TABLE_UPDATED_AT: &str = "2026-08-21";
 
 pub fn lookup_model_rate(model: &str) -> Option<&'static ModelRateEntry> {
@@ -64,15 +72,16 @@ mod tests {
     fn rate_table_matches_v0_1_rate_card() {
         assert_eq!(
             RATE_TABLE_SOURCE,
-            "OpenAI Codex rate card (https://help.openai.com/en/articles/20001106-codex-rate-card)"
+            "OpenAI Codex rate card (https://help.openai.com/en/articles/20001106-codex-rate-card), included-usage column"
         );
+        assert_eq!(RATE_PROFILE_ID, "included_usage_equivalent_v1");
+        assert!(RATE_PROFILE_PURPOSE.contains("not purchased-credit billing"));
         assert_eq!(RATE_TABLE_UPDATED_AT, "2026-08-21");
         assert_eq!(MODEL_RATE_TABLE.len(), 3);
 
         let sol = &MODEL_RATE_TABLE[0];
         assert_eq!(sol.model, "gpt-5.6-sol");
         assert_eq!(sol.speed, "standard");
-        assert_eq!(sol.effective_date, "2026-08-21");
         assert_eq!(sol.input_per_million_tokens, 125.0);
         assert_eq!(sol.cached_input_per_million_tokens, 12.5);
         assert_eq!(sol.output_per_million_tokens, 750.0);
@@ -81,7 +90,6 @@ mod tests {
         let terra = &MODEL_RATE_TABLE[1];
         assert_eq!(terra.model, "gpt-5.6-terra");
         assert_eq!(terra.speed, "standard");
-        assert_eq!(terra.effective_date, "2026-08-21");
         assert_eq!(terra.input_per_million_tokens, 50.0);
         assert_eq!(terra.cached_input_per_million_tokens, 5.0);
         assert_eq!(terra.output_per_million_tokens, 300.0);
@@ -90,7 +98,6 @@ mod tests {
         let luna = &MODEL_RATE_TABLE[2];
         assert_eq!(luna.model, "gpt-5.6-luna");
         assert_eq!(luna.speed, "standard");
-        assert_eq!(luna.effective_date, "2026-08-21");
         assert_eq!(luna.input_per_million_tokens, 5.0);
         assert_eq!(luna.cached_input_per_million_tokens, 0.5);
         assert_eq!(luna.output_per_million_tokens, 30.0);
@@ -176,11 +183,10 @@ mod tests {
         let mut seen = std::collections::BTreeSet::new();
         for entry in &MODEL_RATE_TABLE {
             assert!(
-                seen.insert((entry.model, entry.speed, entry.effective_date)),
-                "duplicate rate range for {} / {} @ {}",
+                seen.insert((entry.model, entry.speed)),
+                "duplicate rate range for {} / {}",
                 entry.model,
-                entry.speed,
-                entry.effective_date
+                entry.speed
             );
         }
         assert_eq!(seen.len(), MODEL_RATE_TABLE.len());
