@@ -8,6 +8,10 @@ import "./styles.css";
 
 const isCompact = window.location.hash === "#/compact";
 
+if (isCompact) {
+  document.documentElement.classList.add("compact-mode");
+}
+
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     {isCompact ? <CompactMonitor /> : <App />}

@@ -275,20 +275,6 @@ pub struct UpdateCheckResponse {
     pub not_modified: Option<bool>,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct UpdateInstallResponse {
-    pub version: String,
-}
-
-#[derive(Debug, Clone, Serialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct UpdateDownloadProgress {
-    pub downloaded: u64,
-    pub total: Option<u64>,
-    pub finished: bool,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionDailyUsageRow {
@@ -487,7 +473,6 @@ pub struct SessionReplayDetail {
 pub enum ServerCreditAnalyticsStatus {
     Ready,
     Partial,
-    Pending,
     Invalid,
 }
 

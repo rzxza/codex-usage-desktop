@@ -281,7 +281,7 @@ export function CompactMonitor() {
 
   return (
     <div
-      className="flex h-screen select-none flex-col overflow-hidden bg-background text-foreground"
+      className="compact-root flex h-screen select-none flex-col overflow-hidden bg-background text-foreground"
       style={{ ["--compact-surface-alpha" as string]: surfaceOpacity } as React.CSSProperties}
     >
       <header
@@ -440,7 +440,11 @@ export function CompactMonitor() {
             ) : null}
           </div>
           <div className="mt-1 flex items-center justify-between gap-2">
-            <Sparkline points={analytics?.sevenDaySeries ?? []} />
+            {last7?.completeness.isComplete ? (
+              <Sparkline points={analytics?.sevenDaySeries ?? []} />
+            ) : (
+              <span className="text-[10px] text-muted-foreground">—</span>
+            )}
             {last7 && last7.models.length > 0 ? (
               <span className="text-[10px] text-muted-foreground">
                 {t("compact.model_split")}: S {oneDecimal(modelPercent("gpt-5.6-sol"))} · L {oneDecimal(modelPercent("gpt-5.6-luna"))} · T {oneDecimal(modelPercent("gpt-5.6-terra"))}

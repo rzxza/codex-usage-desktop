@@ -2,8 +2,8 @@ use crate::{codex_limits, credit_analytics, date, types::ServerCreditAnalyticsRe
 use reqwest::blocking::{Client, RequestBuilder};
 use serde::Deserialize;
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
-use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
@@ -12,6 +12,10 @@ const DAILY_WORKSPACE_USAGE_COUNTS_URL: &str =
 const DAILY_TOKEN_USAGE_BREAKDOWN_URL: &str =
     "https://chatgpt.com/backend-api/wham/usage/daily-token-usage-breakdown";
 const REQUEST_TIMEOUT_SECS: u64 = 30;
+/// Fetch at least 45 calendar days so a 30-complete-day window plus the
+/// previous 7-complete-day window remain available even when the latest
+/// complete date is a few days behind today.
+const FETCH_HORIZON_DAYS: i64 = 45;
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 pub(crate) struct WorkspaceUsageCountsDay {
@@ -58,34 +62,111 @@ struct AnalyticsCacheEntry {
     value: ServerCreditAnalyticsResponse,
 }
 
-static ANALYTICS_CACHE: OnceLock<Mutex<HashMap<String, AnalyticsCacheEntry>>> = OnceLock::new();
-static ANALYTICS_FLIGHTS: OnceLock<Mutex<HashMap<String, Arc<Mutex<()>>>>> = OnceLock::new();
+struct AnalyticsCacheStore {
+    cache: Mutex<HashMap<String, AnalyticsCacheEntry>>,
+    flights: Mutex<HashMap<String, Arc<Mutex<()>>>>,
+}
+
+impl AnalyticsCacheStore {
+    fn new() -> Self {
+        Self {
+            cache: Mutex::new(HashMap::new()),
+            flights: Mutex::new(HashMap::new()),
+        }
+    }
+
+    fn flight(&self, key: &str) -> Arc<Mutex<()>> {
+        let mut flights = self.flights.lock().unwrap_or_else(|e| e.into_inner());
+        flights
+            .entry(key.to_string())
+            .or_insert_with(|| Arc::new(Mutex::new(())))
+            .clone()
+    }
+
+    fn get_fresh(&self, key: &str) -> Option<ServerCreditAnalyticsResponse> {
+        let cache = self.cache.lock().unwrap_or_else(|e| e.into_inner());
+        cache
+            .get(key)
+            .filter(|entry| entry.stored_at.elapsed() < ANALYTICS_TTL)
+            .map(|entry| entry.value.clone())
+    }
+
+    fn get_after_wait(
+        &self,
+        key: &str,
+        force_refresh: bool,
+        wait_started: Instant,
+    ) -> Option<ServerCreditAnalyticsResponse> {
+        let cache = self.cache.lock().unwrap_or_else(|e| e.into_inner());
+        cache.get(key).and_then(|entry| {
+            let fresh_enough = !force_refresh && entry.stored_at.elapsed() < ANALYTICS_TTL;
+            let concurrent_force = force_refresh && entry.stored_at >= wait_started;
+            if fresh_enough || concurrent_force {
+                Some(entry.value.clone())
+            } else {
+                None
+            }
+        })
+    }
+
+    fn store(&self, key: &str, value: ServerCreditAnalyticsResponse) {
+        let mut cache = self.cache.lock().unwrap_or_else(|e| e.into_inner());
+        cache.insert(
+            key.to_string(),
+            AnalyticsCacheEntry {
+                stored_at: Instant::now(),
+                value,
+            },
+        );
+    }
+
+    fn fetch<F>(
+        &self,
+        key: &str,
+        force_refresh: bool,
+        load: F,
+    ) -> Result<ServerCreditAnalyticsResponse, String>
+    where
+        F: FnOnce() -> Result<ServerCreditAnalyticsResponse, String>,
+    {
+        if !force_refresh {
+            if let Some(value) = self.get_fresh(key) {
+                return Ok(value);
+            }
+        }
+
+        let wait_started = Instant::now();
+        let flight = self.flight(key);
+        let _guard = flight.lock().unwrap_or_else(|e| e.into_inner());
+
+        if let Some(value) = self.get_after_wait(key, force_refresh, wait_started) {
+            return Ok(value);
+        }
+
+        let value = load()?;
+        self.store(key, value.clone());
+        Ok(value)
+    }
+}
+
+static ANALYTICS_STORE: OnceLock<AnalyticsCacheStore> = OnceLock::new();
+
+fn analytics_cache_store() -> &'static AnalyticsCacheStore {
+    ANALYTICS_STORE.get_or_init(AnalyticsCacheStore::new)
+}
+
+fn token_fingerprint(token: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(token.as_bytes());
+    let digest = hasher.finalize();
+    digest.iter().map(|byte| format!("{byte:02x}")).collect()
+}
 
 fn analytics_cache_key(auth: &codex_limits::CodexAuth) -> String {
     if let Some(account_id) = &auth.account_id {
         return format!("account:{account_id}");
     }
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    auth.access_token.hash(&mut hasher);
-    format!("token:{:016x}", hasher.finish())
-}
-
-fn analytics_cache() -> &'static Mutex<HashMap<String, AnalyticsCacheEntry>> {
-    ANALYTICS_CACHE.get_or_init(|| Mutex::new(HashMap::new()))
-}
-
-fn analytics_flights() -> &'static Mutex<HashMap<String, Arc<Mutex<()>>>> {
-    ANALYTICS_FLIGHTS.get_or_init(|| Mutex::new(HashMap::new()))
-}
-
-fn flight_for(key: &str) -> Arc<Mutex<()>> {
-    let mut flights = analytics_flights()
-        .lock()
-        .unwrap_or_else(|e| e.into_inner());
-    flights
-        .entry(key.to_string())
-        .or_insert_with(|| Arc::new(Mutex::new(())))
-        .clone()
+    format!("token:{}", token_fingerprint(&auth.access_token))
 }
 
 pub fn fetch_server_credit_analytics(
@@ -93,57 +174,25 @@ pub fn fetch_server_credit_analytics(
 ) -> Result<ServerCreditAnalyticsResponse, String> {
     let auth = codex_limits::load_codex_auth()?;
     let key = analytics_cache_key(&auth);
-
-    {
-        let cache = analytics_cache().lock().unwrap_or_else(|e| e.into_inner());
-        if !force_refresh {
-            if let Some(entry) = cache
-                .get(&key)
-                .filter(|entry| entry.stored_at.elapsed() < ANALYTICS_TTL)
-            {
-                return Ok(entry.value.clone());
-            }
-        }
-    }
-
-    let wait_started = Instant::now();
-    let flight = flight_for(&key);
-    let _guard = flight.lock().unwrap_or_else(|e| e.into_inner());
-
-    {
-        let cache = analytics_cache().lock().unwrap_or_else(|e| e.into_inner());
-        if let Some(entry) = cache.get(&key) {
-            let fresh_enough = !force_refresh && entry.stored_at.elapsed() < ANALYTICS_TTL;
-            let concurrent_force = force_refresh && entry.stored_at >= wait_started;
-            if fresh_enough || concurrent_force {
-                return Ok(entry.value.clone());
-            }
-        }
-    }
-
-    let value = fetch_server_credit_analytics_uncached()?;
-    let entry = AnalyticsCacheEntry {
-        stored_at: Instant::now(),
-        value: value.clone(),
-    };
-    analytics_cache()
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .insert(key, entry);
-    Ok(value)
+    analytics_cache_store().fetch(&key, force_refresh, || {
+        fetch_server_credit_analytics_uncached(&auth)
+    })
 }
 
-fn fetch_server_credit_analytics_uncached() -> Result<ServerCreditAnalyticsResponse, String> {
+fn fetch_server_credit_analytics_uncached(
+    auth: &codex_limits::CodexAuth,
+) -> Result<ServerCreditAnalyticsResponse, String> {
     let timezone = date::resolve_app_timezone();
     let today = date::date_key_in_timezone(chrono::Utc::now(), &timezone);
-    let start_date = date::shift_date_key(&today, -29)?;
+    // Fetch at least 45 calendar days (today - 44 through tomorrow exclusive).
+    let start_date = date::shift_date_key(&today, -(FETCH_HORIZON_DAYS - 1))?;
     // WHAM date windows are requested with an exclusive end boundary (tomorrow)
     // so today's partial row is always covered regardless of server convention;
     // rows beyond today are clamped client-side before analysis.
     let request_end_date = date::shift_date_key(&today, 1)?;
 
-    let mut counts = fetch_workspace_usage_counts(&start_date, &request_end_date)?;
-    let mut breakdowns = fetch_token_usage_breakdown(&start_date, &request_end_date)?;
+    let mut counts = fetch_workspace_usage_counts(auth, &start_date, &request_end_date)?;
+    let mut breakdowns = fetch_token_usage_breakdown(auth, &start_date, &request_end_date)?;
     retain_dates_up_to_today(&mut counts, &today, |day| &day.date);
     retain_dates_up_to_today(&mut breakdowns, &today, |day| &day.date);
 
@@ -161,6 +210,7 @@ fn retain_dates_up_to_today<T>(rows: &mut Vec<T>, today: &str, date_of: impl Fn(
 }
 
 pub(crate) fn fetch_workspace_usage_counts(
+    auth: &codex_limits::CodexAuth,
     start_date: &str,
     end_date: &str,
 ) -> Result<Vec<WorkspaceUsageCountsDay>, String> {
@@ -170,12 +220,14 @@ pub(crate) fn fetch_workspace_usage_counts(
         DAILY_WORKSPACE_USAGE_COUNTS_URL,
         start_date,
         end_date,
+        auth,
         &[("workspace_user", "true")],
     )?;
     parse_workspace_counts(&body)
 }
 
 pub(crate) fn fetch_token_usage_breakdown(
+    auth: &codex_limits::CodexAuth,
     start_date: &str,
     end_date: &str,
 ) -> Result<Vec<TokenUsageBreakdownDay>, String> {
@@ -185,6 +237,7 @@ pub(crate) fn fetch_token_usage_breakdown(
         DAILY_TOKEN_USAGE_BREAKDOWN_URL,
         start_date,
         end_date,
+        auth,
         &[],
     )?;
     parse_token_usage_breakdown(&body)
@@ -206,10 +259,10 @@ fn send_authenticated_get(
     url: &str,
     start_date: &str,
     end_date: &str,
+    auth: &codex_limits::CodexAuth,
     extra_query: &[(&str, &str)],
 ) -> Result<String, String> {
-    let auth = codex_limits::load_codex_auth()?;
-    let request = build_request(client, url, start_date, end_date, &auth, extra_query)?;
+    let request = build_request(client, url, start_date, end_date, auth, extra_query)?;
     let response = request
         .send()
         .map_err(|error| format!("Server analytics request failed: {error}"))?;
@@ -425,6 +478,165 @@ mod tests {
         assert_eq!(calls.load(Ordering::SeqCst), 1);
     }
 
+    #[test]
+    fn production_cache_serves_same_account_ttl_without_loader() {
+        let store = AnalyticsCacheStore::new();
+        let key = "account:alice".to_string();
+        let mut expected = sample_response();
+        expected.fetched_at = "2026-08-24T01:00:00.000Z".to_string();
+        store.store(&key, expected);
+        let calls = AtomicUsize::new(0);
+        let value = store
+            .fetch(&key, false, || {
+                calls.fetch_add(1, Ordering::SeqCst);
+                Err("loader must not run".to_string())
+            })
+            .unwrap();
+        assert_eq!(value.fetched_at, "2026-08-24T01:00:00.000Z");
+        assert_eq!(calls.load(Ordering::SeqCst), 0);
+    }
+
+    #[test]
+    fn production_cache_isolates_accounts() {
+        let store = AnalyticsCacheStore::new();
+        let key_a = "account:alice".to_string();
+        let key_b = "account:bob".to_string();
+        let mut value_a = sample_response();
+        value_a.fetched_at = "2026-08-24T01:00:00.000Z".to_string();
+        let mut value_b = sample_response();
+        value_b.fetched_at = "2026-08-24T02:00:00.000Z".to_string();
+        store.store(&key_a, value_a.clone());
+        store.store(&key_b, value_b.clone());
+
+        let calls = AtomicUsize::new(0);
+        let got_a = store
+            .fetch(&key_a, false, || {
+                calls.fetch_add(1, Ordering::SeqCst);
+                Err("loader must not run".to_string())
+            })
+            .unwrap();
+        let got_b = store
+            .fetch(&key_b, false, || {
+                calls.fetch_add(1, Ordering::SeqCst);
+                Err("loader must not run".to_string())
+            })
+            .unwrap();
+        assert_eq!(got_a.fetched_at, value_a.fetched_at);
+        assert_eq!(got_b.fetched_at, value_b.fetched_at);
+        assert_eq!(calls.load(Ordering::SeqCst), 0);
+    }
+
+    #[test]
+    fn production_cache_force_bypasses_ttl() {
+        let store = AnalyticsCacheStore::new();
+        let key = "account:alice".to_string();
+        let mut cached = sample_response();
+        cached.fetched_at = "2026-08-24T01:00:00.000Z".to_string();
+        store.store(&key, cached);
+
+        let mut loaded = sample_response();
+        loaded.fetched_at = "2026-08-24T03:00:00.000Z".to_string();
+        let calls = AtomicUsize::new(0);
+        let value = store
+            .fetch(&key, true, || {
+                calls.fetch_add(1, Ordering::SeqCst);
+                Ok(loaded.clone())
+            })
+            .unwrap();
+        assert_eq!(value.fetched_at, loaded.fetched_at);
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn production_cache_reloads_after_same_account_ttl_expiry() {
+        let store = AnalyticsCacheStore::new();
+        let key = "account:alice".to_string();
+        let mut cached = sample_response();
+        cached.fetched_at = "2026-08-24T01:00:00.000Z".to_string();
+        store.store(&key, cached);
+        {
+            let mut cache = store.cache.lock().unwrap_or_else(|e| e.into_inner());
+            if let Some(entry) = cache.get_mut(&key) {
+                entry.stored_at = Instant::now() - ANALYTICS_TTL - Duration::from_secs(1);
+            }
+        }
+
+        let mut loaded = sample_response();
+        loaded.fetched_at = "2026-08-24T03:00:00.000Z".to_string();
+        let calls = AtomicUsize::new(0);
+        let value = store
+            .fetch(&key, false, || {
+                calls.fetch_add(1, Ordering::SeqCst);
+                Ok(loaded.clone())
+            })
+            .unwrap();
+        assert_eq!(value.fetched_at, loaded.fetched_at);
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn production_cache_concurrent_force_uses_single_flight() {
+        let store = Arc::new(AnalyticsCacheStore::new());
+        let key = "account:concurrent".to_string();
+        let mut seeded = sample_response();
+        seeded.fetched_at = "2026-08-24T01:00:00.000Z".to_string();
+        store.store(&key, seeded);
+
+        let barrier = Arc::new(std::sync::Barrier::new(4));
+        let calls = Arc::new(AtomicUsize::new(0));
+        let mut handles = Vec::new();
+        for _ in 0..4 {
+            let store = Arc::clone(&store);
+            let barrier = Arc::clone(&barrier);
+            let calls = Arc::clone(&calls);
+            let key = key.clone();
+            handles.push(std::thread::spawn(move || {
+                barrier.wait();
+                let mut loaded = sample_response();
+                loaded.fetched_at = "2026-08-24T03:00:00.000Z".to_string();
+                store.fetch(&key, true, || {
+                    calls.fetch_add(1, Ordering::SeqCst);
+                    std::thread::sleep(Duration::from_millis(80)); // widen the race
+                    Ok(loaded)
+                })
+            }));
+        }
+
+        for handle in handles {
+            let value = handle.join().unwrap().unwrap();
+            assert_eq!(value.fetched_at, "2026-08-24T03:00:00.000Z");
+        }
+        assert_eq!(
+            calls.load(Ordering::SeqCst),
+            1,
+            "concurrent force refreshes must collapse into one upstream load"
+        );
+    }
+
+    #[test]
+    fn token_fallback_key_is_irreversible_sha256_fingerprint() {
+        let auth = codex_limits::CodexAuth {
+            access_token: "super-secret-token".to_string(),
+            account_id: None,
+        };
+        let key = analytics_cache_key(&auth);
+        assert!(key.starts_with("token:"));
+        assert!(!key.contains("super-secret-token"));
+        assert_eq!(key.len(), "token:".len() + 64);
+
+        let other = codex_limits::CodexAuth {
+            access_token: "another-secret-token".to_string(),
+            account_id: None,
+        };
+        assert_ne!(key, analytics_cache_key(&other));
+
+        let account_auth = codex_limits::CodexAuth {
+            access_token: "super-secret-token".to_string(),
+            account_id: Some("acct_123".to_string()),
+        };
+        assert_eq!(analytics_cache_key(&account_auth), "account:acct_123");
+    }
+
     fn counts_day(date: &str) -> WorkspaceUsageCountsDay {
         WorkspaceUsageCountsDay {
             date: date.to_string(),
@@ -443,6 +655,16 @@ mod tests {
             units: "percent".to_string(),
             models: Vec::new(),
         }
+    }
+
+    fn sample_response() -> ServerCreditAnalyticsResponse {
+        credit_analytics::build_server_credit_analytics(
+            vec![counts_day("2026-08-24")],
+            vec![breakdown_day("2026-08-24")],
+            "2026-08-25",
+            "2026-08-01",
+            "2026-08-25",
+        )
     }
 
     #[test]

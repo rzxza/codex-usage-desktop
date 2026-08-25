@@ -120,6 +120,14 @@ describe("CompactMonitor", () => {
     expect(screen.getByText(/S 90.8 · L 6.9 · T 2.3/)).toBeInTheDocument();
   });
 
+  it("applies compact-root class and default surface opacity variable", async () => {
+    render(<CompactMonitor />);
+    await waitFor(() => expect(invokeHandlers.analytics).toHaveBeenCalled());
+    const root = document.querySelector(".compact-root");
+    expect(root).not.toBeNull();
+    expect((root as HTMLElement).style.getPropertyValue("--compact-surface-alpha")).toBe("0.94");
+  });
+
   it("keeps quota on a 60s cycle and analytics on a 5min cycle", async () => {
     vi.useFakeTimers();
     render(<CompactMonitor />);
@@ -228,7 +236,7 @@ describe("CompactMonitor", () => {
   it("does not show zero model split when 7-day model data is missing", async () => {
     const pending = {
       ...analyticsPayload,
-      status: "pending",
+      status: "partial",
       last7CompleteDays: {
         ...analyticsPayload.last7CompleteDays,
         models: [],
@@ -239,6 +247,7 @@ describe("CompactMonitor", () => {
     render(<CompactMonitor />);
     await act(async () => {});
     expect(document.body.textContent).not.toContain("S 0");
+    expect(document.querySelector('svg[aria-label="7 day sparkline"]')).toBeNull();
   });
 
   it("manual refresh refetches both endpoints", async () => {

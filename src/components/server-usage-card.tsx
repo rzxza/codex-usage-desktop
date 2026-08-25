@@ -65,7 +65,6 @@ export function ServerUsageCard({ analytics, error, isLoading }: ServerUsageCard
               "rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider border",
               analytics.status === "ready" && "bg-success/10 border-success/25 text-success",
               analytics.status === "partial" && "bg-warning/10 border-warning/25 text-warning",
-              analytics.status === "pending" && "bg-muted/50 border-border/40 text-muted-foreground",
               analytics.status === "invalid" && "bg-error/10 border-error/25 text-error",
             )}
           >

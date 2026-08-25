@@ -127,3 +127,20 @@
     animation: loading-meter 1.6s ease-in-out infinite;
   }
 }
+
+/* Compact monitor: let the transparent Tauri window show through by making
+   the document background transparent, then apply the user-selected surface
+   opacity only to backgrounds. Text/icons keep their own opacity. */
+html.compact-mode,
+html.compact-mode body,
+html.compact-mode #root {
+  background: transparent;
+}
+
+.compact-root.bg-background {
+  background-color: rgb(var(--background) / var(--compact-surface-alpha, 0.94)) !important;
+}
+
+.compact-root .bg-surface {
+  background-color: rgb(var(--surface) / var(--compact-surface-alpha, 0.94)) !important;
+}

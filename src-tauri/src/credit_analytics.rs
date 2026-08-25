@@ -158,9 +158,9 @@ pub fn build_server_credit_analytics(
     let today_entry = daily.iter().find(|day| day.date == today);
     let top_status = if k.is_none() {
         ServerCreditAnalyticsStatus::Invalid
-    } else if today_entry.is_some_and(|day| day.is_pending) {
-        ServerCreditAnalyticsStatus::Pending
-    } else if today_entry.is_some_and(|day| day.is_partial) {
+    } else if !last_7_complete_days.completeness.is_complete
+        || !last_30_complete_days.completeness.is_complete
+    {
         ServerCreditAnalyticsStatus::Partial
     } else {
         ServerCreditAnalyticsStatus::Ready
@@ -1007,7 +1007,7 @@ mod tests {
     }
 
     #[test]
-    fn marks_today_pending_when_tokens_exist_but_breakdown_is_zero() {
+    fn marks_today_pending_but_status_uses_complete_windows() {
         let counts = vec![
             counts("2026-08-21", 100_000, 0, 100_000, 200_000),
             counts("2026-08-20", 100_000, 0, 100_000, 200_000),
@@ -1035,7 +1035,7 @@ mod tests {
         let today = response.today.as_ref().unwrap();
         assert!(today.is_pending);
         assert_eq!(today.credits, None);
-        assert_eq!(response.status, ServerCreditAnalyticsStatus::Pending);
+        assert_eq!(response.status, ServerCreditAnalyticsStatus::Partial);
     }
 
     #[test]
@@ -1262,6 +1262,49 @@ mod tests {
             24
         );
         assert!(!response.last_30_complete_days.completeness.is_complete);
+    }
+
+    #[test]
+    fn forty_five_day_horizon_yields_30_30_complete_window() {
+        let mut count_rows = Vec::new();
+        let mut breakdowns = Vec::new();
+        for day in 26..=31 {
+            let date = format!("2026-07-{day:02}");
+            count_rows.push(counts(&date, 100_000, 0, 100_000, 200_000));
+            breakdowns.push(breakdown(
+                &date,
+                "percent",
+                vec![("gpt-5.6-luna", "standard", 100.0)],
+            ));
+        }
+        for day in 1..=24 {
+            let date = format!("2026-08-{day:02}");
+            count_rows.push(counts(&date, 100_000, 0, 100_000, 200_000));
+            breakdowns.push(breakdown(
+                &date,
+                "percent",
+                vec![("gpt-5.6-luna", "standard", 100.0)],
+            ));
+        }
+        let response = build_server_credit_analytics(
+            count_rows,
+            breakdowns,
+            "2026-08-25",
+            "2026-07-12",
+            "2026-08-25",
+        );
+        assert_eq!(response.latest_complete_date.as_deref(), Some("2026-08-24"));
+        assert_eq!(response.last_30_complete_days.start_date, "2026-07-26");
+        assert_eq!(response.last_30_complete_days.end_date, "2026-08-24");
+        assert_eq!(
+            response.last_30_complete_days.completeness.expected_days,
+            30
+        );
+        assert_eq!(
+            response.last_30_complete_days.completeness.complete_days,
+            30
+        );
+        assert!(response.last_30_complete_days.completeness.is_complete);
     }
 
     #[test]

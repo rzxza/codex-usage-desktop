@@ -148,7 +148,7 @@ export type CodexQuotaForecastResponse = {
 
 
 export type CalibrationStatus = "excellent" | "good" | "warning" | "invalid";
-export type ServerCreditAnalyticsStatus = "ready" | "partial" | "pending" | "invalid";
+export type ServerCreditAnalyticsStatus = "ready" | "partial" | "invalid";
 
 export type CalibrationSummary = {
   k: number | null;
@@ -292,10 +292,6 @@ export type UpdateCheckResponse = {
   notModified?: boolean | null;
 };
 
-export type UpdateInstallResponse = {
-  version: string;
-};
-
 export type UpdateDownloadProgress = {
   downloaded: number;
   total: number | null;
@@ -307,10 +303,6 @@ export async function checkForUpdates(etag?: string | null): Promise<UpdateCheck
     return invoke<UpdateCheckResponse>("check_for_updates", { etag });
   }
   return invoke<UpdateCheckResponse>("check_for_updates");
-}
-
-export async function downloadAndInstallUpdate(): Promise<UpdateInstallResponse> {
-  return invoke<UpdateInstallResponse>("download_and_install_update");
 }
 
 export async function restartApp(): Promise<void> {

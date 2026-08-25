@@ -15,20 +15,15 @@ mod types;
 
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
-use std::sync::{
-    atomic::{AtomicU64, Ordering},
-    Arc,
-};
 use std::time::{Duration, Instant};
 use tauri::menu::{Menu, MenuItem, MenuItemKind};
 use tauri::tray::{MouseButton, TrayIconBuilder, TrayIconEvent};
 use tauri::{Emitter, Manager};
-use tauri_plugin_updater::UpdaterExt;
 use types::{
     CodexLimitsResponse, CodexQuotaForecastResponse, ExportResponse, ModelPricingCatalogResponse,
     MonthlyUsageResponse, OverviewResponse, ProjectAnalyticsResponse, ScanResponse,
     ServerCreditAnalyticsResponse, SessionDetailRow, SessionReplayDetail, UpdateCheckResponse,
-    UpdateDownloadProgress, UpdateInstallResponse, UsageRefreshResponse,
+    UsageRefreshResponse,
 };
 
 const BACKGROUND_RESCAN_INTERVAL: Duration = Duration::from_secs(5 * 60);
@@ -543,57 +538,6 @@ async fn check_for_updates(
 }
 
 #[tauri::command]
-async fn download_and_install_update(
-    app: tauri::AppHandle,
-) -> Result<UpdateInstallResponse, String> {
-    let updater = app.updater().map_err(|e| e.to_string())?;
-    let update = updater
-        .check()
-        .await
-        .map_err(|e| e.to_string())?
-        .ok_or_else(|| "No update available.".to_string())?;
-
-    let version = update.version.clone();
-    let downloaded = Arc::new(AtomicU64::new(0));
-    let finished_downloaded = Arc::clone(&downloaded);
-    let progress_app = app.clone();
-    update
-        .download_and_install(
-            |chunk_length, content_length| {
-                let downloaded = downloaded
-                    .fetch_add(chunk_length as u64, Ordering::Relaxed)
-                    .saturating_add(chunk_length as u64);
-                let _ = progress_app.emit(
-                    "update-download-progress",
-                    UpdateDownloadProgress {
-                        downloaded,
-                        total: content_length,
-                        finished: false,
-                    },
-                );
-                log::debug!("Downloaded updater chunk: {chunk_length} bytes of {content_length:?}");
-            },
-            || {
-                let downloaded = finished_downloaded.load(Ordering::Relaxed);
-                let _ = app.emit(
-                    "update-download-progress",
-                    UpdateDownloadProgress {
-                        downloaded,
-                        total: Some(downloaded),
-                        finished: true,
-                    },
-                );
-                log::info!("Update download finished.");
-            },
-        )
-        .await
-        .map_err(|e| e.to_string())?;
-
-    log::info!("Update {version} installed. Waiting for user restart.");
-    Ok(UpdateInstallResponse { version })
-}
-
-#[tauri::command]
 async fn restart_app(app: tauri::AppHandle) -> Result<(), String> {
     app.request_restart();
     Ok(())
@@ -886,7 +830,6 @@ pub fn run() {
             reset_usage_state,
             export_usage,
             check_for_updates,
-            download_and_install_update,
             restart_app,
             open_url,
             fetch_session_details,

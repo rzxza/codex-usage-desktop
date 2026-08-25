@@ -19,7 +19,6 @@ import {
   type OverviewResponse,
   type RangeKey,
   checkForUpdates,
-  downloadAndInstallUpdate,
   openUrl,
   restartApp,
   type UpdateCheckResponse,
@@ -778,7 +777,7 @@ export function useUsageDashboard() {
           enabled: false,
         });
       }
-      const weekCredits = serverAnalytics.last7Days.credits;
+      const weekCredits = serverAnalytics.last7CompleteDays.credits;
       if (weekCredits !== null && weekCredits !== undefined) {
         items.push({
           id: "status_7d_credits",
@@ -983,22 +982,8 @@ export function useUsageDashboard() {
       return;
     }
 
-    if (!updateInfo?.hasUpdate || updateInstallStatus === "downloading") {
-      return;
-    }
-
-    setUpdateInstallStatus("downloading");
-    setUpdateProgress(emptyUpdateProgress);
-    setUpdateInstallError(null);
-    try {
-      await downloadAndInstallUpdate();
-      setUpdateProgress((progress) => ({ ...progress, percent: 100, finished: true }));
-      setUpdateInstallStatus("installed");
-    } catch (e) {
-      setUpdateInstallStatus("idle");
-      setUpdateProgress(emptyUpdateProgress);
-      setUpdateInstallError(errorMessage(e, "Failed to download and install the update."));
-    }
+    // Install path is intentionally unreachable for RC: UPDATES_ENABLED is false
+    // and the download_and_install_update command is no longer registered.
   };
 
   const handleOpenUpdateRelease = async () => {
