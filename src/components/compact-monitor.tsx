@@ -12,7 +12,7 @@ import {
   type ServerCreditAnalyticsResponse,
 } from "@/lib/api";
 import { formatNumber } from "@/lib/formatters";
-import { selectPrimaryQuota } from "@/lib/quota";
+import { primaryQuotaLabel, selectPrimaryQuota } from "@/lib/quota";
 import { cn } from "@/lib/utils";
 
 const LIMITS_REFRESH_MS = 60_000;
@@ -88,36 +88,62 @@ function WindowStatus({
       </p>
     );
   }
-  const hasKnown = window.knownCredits !== null && window.knownCredits !== undefined;
   return (
-    <p className="mt-1 text-[10px] leading-tight text-warning">
-      {hasKnown ? `${t("compact.known")} ` : ""}
-      {completeDays}/{expectedDays} {t("compact.day_short")}
-      {missingDates.length > 0
-        ? ` · ${t("compact.missing")}: ${missingDates.join(", ")}`
-        : ""}
+    <p
+      className="mt-1 text-[10px] leading-tight text-warning"
+      title={missingDates.length > 0 ? `${t("compact.missing")}: ${missingDates.join(", ")}` : undefined}
+    >
+      {completeDays}/{expectedDays} {t("compact.day_short")} ⚠
     </p>
   );
 }
 
-function Sparkline({ points }: { points: Array<{ date: string; credits: number }> }) {
-  if (points.length === 0) return null;
+function Sparkline({ points }: { points: Array<{ date: string; credits: number | null }> }) {
+  const known = points.filter((p): p is { date: string; credits: number } => p.credits !== null);
+  if (known.length === 0) return null;
   const width = 120;
   const height = 28;
-  const max = Math.max(...points.map((p) => p.credits), 0);
-  const min = Math.min(...points.map((p) => p.credits), 0);
+  const max = Math.max(...known.map((p) => p.credits), 0);
+  const min = Math.min(...known.map((p) => p.credits), 0);
   const range = max - min || 1;
-  const step = points.length > 1 ? width / (points.length - 1) : width;
-  const path = points
-    .map((p, i) => {
+  const step = width / 6; // fixed 7 calendar slots
+  const segments: string[] = [];
+  let current: string[] = [];
+  for (let i = 0; i < points.length; i += 1) {
+    const point = points[i];
+    if (point.credits === null) {
+      if (current.length > 1) segments.push(current.join(" "));
+      current = [];
+    } else {
       const x = i * step;
-      const y = height - ((p.credits - min) / range) * (height - 4) - 2;
-      return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(" ");
+      const y = height - ((point.credits - min) / range) * (height - 4) - 2;
+      current.push(`${current.length === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`);
+    }
+  }
+  if (current.length > 1) segments.push(current.join(" "));
   return (
     <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="overflow-visible" aria-label="7 day sparkline">
-      <path d={path} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      {segments.map((d, index) => (
+        <path key={index} d={d} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      ))}
+      {points.map((point, i) => {
+        if (point.credits !== null) return null;
+        const x = i * step;
+        return (
+          <circle
+            key={point.date}
+            cx={x.toFixed(1)}
+            cy={height / 2}
+            r={2}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1"
+            opacity="0.6"
+          >
+            <title>{point.date}</title>
+          </circle>
+        );
+      })}
     </svg>
   );
 }
@@ -288,7 +314,7 @@ export function CompactMonitor() {
 
   const primaryQuota = selectPrimaryQuota(limits);
 
-  const quotaLabel = primaryQuota?.windowMinutes === 10080 ? t("compact.weekly") : t("compact.current_quota");
+  const quotaLabel = primaryQuotaLabel(t);
   const resetCardCount = limits?.resetCreditsAvailableCount ?? limits?.resetCredits?.length ?? 0;
   const error = limitsError ?? analyticsError;
 
@@ -299,8 +325,17 @@ export function CompactMonitor() {
   const last30Display = last30 ? (last30.credits ?? last30.knownCredits ?? null) : null;
   const latestDay = analytics?.latestCompleteDay;
   const latestDate = analytics?.latestCompleteDate ? analytics.latestCompleteDate.slice(5) : "";
+  const last7Models =
+    last7?.knownModels && last7.knownModels.length > 0 ? last7.knownModels : (last7?.models ?? []);
+  const modelSplitSuffix =
+    last7 && !last7.completeness.isComplete && last7Models.length > 0
+      ? ` (${t("compact.known")} ${last7.completeness.completeDays}/${last7.completeness.expectedDays} ${t("compact.day_short")})`
+      : "";
   const modelPercent = (model: string) =>
-    last7?.models.find((entry) => entry.model === model)?.percent ?? 0;
+    last7Models.find((entry) => entry.model === model)?.percent ?? 0;
+  const showCalibrationDetails = analytics
+    ? analytics.calibration.status === "warning" || analytics.calibration.status === "invalid"
+    : false;
 
   const quotaState = feedFreshness(limitsError, limitsUpdatedAt, now);
   const analyticsState = feedFreshness(analyticsError, analyticsUpdatedAt, now);
@@ -402,7 +437,7 @@ export function CompactMonitor() {
         </div>
       </header>
 
-      <main className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3">
+      <main className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden p-3">
         <div className="rounded-lg border border-border/60 bg-surface p-2.5">
           <div className="flex items-center justify-between">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{quotaLabel}</p>
@@ -470,20 +505,20 @@ export function CompactMonitor() {
             ) : null}
           </div>
           <div className="mt-1 flex items-center justify-between gap-2">
-            {last7?.completeness.isComplete ? (
+            {analytics?.sevenDaySeries?.some((point) => point.credits !== null) ? (
               <Sparkline points={analytics?.sevenDaySeries ?? []} />
             ) : (
               <span className="text-[10px] text-muted-foreground">—</span>
             )}
-            {last7 && last7.models.length > 0 ? (
+            {last7Models.length > 0 ? (
               <span className="text-[10px] text-muted-foreground">
-                {t("compact.model_split")}: S {oneDecimal(modelPercent("gpt-5.6-sol"))} · L {oneDecimal(modelPercent("gpt-5.6-luna"))} · T {oneDecimal(modelPercent("gpt-5.6-terra"))}
+                {t("compact.model_split")}{modelSplitSuffix}: S {oneDecimal(modelPercent("gpt-5.6-sol"))} · L {oneDecimal(modelPercent("gpt-5.6-luna"))} · T {oneDecimal(modelPercent("gpt-5.6-terra"))}
               </span>
             ) : (
               <span className="text-[10px] text-muted-foreground">{t("compact.unavailable")}</span>
             )}
           </div>
-          {last7 && last7.models.length > 0 ? (
+          {last7Models.length > 0 ? (
             <div className="mt-1.5 flex h-2 w-full overflow-hidden rounded-full bg-muted/40">
               <div className="h-full bg-indigo-500" style={{ width: `${Math.min(100, modelPercent("gpt-5.6-sol"))}%` }} />
               <div className="h-full bg-teal-500" style={{ width: `${Math.min(100, modelPercent("gpt-5.6-luna"))}%` }} />
@@ -495,8 +530,8 @@ export function CompactMonitor() {
         <div className="mt-auto flex items-center justify-between border-t border-border/50 px-0.5 pt-2 text-[10px] text-muted-foreground">
           <span>
             {t("compact.calibration_short")} {analytics?.calibration.status === "excellent" ? t("compact.cal_excellent") : analytics?.calibration.status}
-            {analytics && analytics.calibration.k !== null ? ` · K${analytics.calibration.k.toFixed(2)}` : ""}
-            {analytics && analytics.calibration.sampleCount ? ` · ${analytics.calibration.sampleCount}${t("compact.samples_short")}` : ""}
+            {analytics && showCalibrationDetails && analytics.calibration.k !== null ? ` · K${analytics.calibration.k.toFixed(2)}` : ""}
+            {analytics && showCalibrationDetails && analytics.calibration.sampleCount ? ` · ${analytics.calibration.sampleCount}${t("compact.samples_short")}` : ""}
           </span>
           <span>
             {t("compact.analytics_updated")}:{" "}

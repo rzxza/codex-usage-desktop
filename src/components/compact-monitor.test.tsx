@@ -247,7 +247,7 @@ describe("CompactMonitor", () => {
     render(<CompactMonitor />);
     await act(async () => {});
     expect(document.body.textContent).not.toContain("S 0");
-    expect(document.querySelector('svg[aria-label="7 day sparkline"]')).toBeNull();
+    expect(document.querySelector('svg[aria-label="7 day sparkline"]')).not.toBeNull();
   });
 
   it("manual refresh refetches both endpoints", async () => {

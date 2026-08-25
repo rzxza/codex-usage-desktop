@@ -330,6 +330,7 @@ fn complete_window(
             None
         },
         known_credits: if has_credits { Some(credits_sum) } else { None },
+        known_models: models.clone(),
         models: if is_complete { models } else { Vec::new() },
         completeness: CreditWindowCompleteness {
             expected_days: window_days as u32,
@@ -352,16 +353,18 @@ fn seven_day_series(
     let mut series = Vec::new();
     let mut current = start_date.clone();
     while current.as_str() <= end_date {
-        if is_complete_day(&current, today, counts_by_date, breakdowns_by_date) {
-            let credits = daily_by_date
+        let credits = if is_complete_day(&current, today, counts_by_date, breakdowns_by_date) {
+            daily_by_date
                 .get(&current)
                 .and_then(|day| day.credits)
-                .unwrap_or(0.0);
-            series.push(SevenDayCreditPoint {
-                date: current.clone(),
-                credits,
-            });
-        }
+                .or(Some(0.0))
+        } else {
+            None
+        };
+        series.push(SevenDayCreditPoint {
+            date: current.clone(),
+            credits,
+        });
         current = crate::date::shift_date_key(&current, 1).unwrap_or_else(|_| current.clone());
     }
     series

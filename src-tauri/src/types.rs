@@ -536,6 +536,7 @@ pub struct CompleteCreditWindow {
     pub end_date: String,
     pub credits: Option<f64>,
     pub known_credits: Option<f64>,
+    pub known_models: Vec<ModelCreditUsage>,
     pub models: Vec<ModelCreditUsage>,
     pub completeness: CreditWindowCompleteness,
 }
@@ -544,7 +545,7 @@ pub struct CompleteCreditWindow {
 #[serde(rename_all = "camelCase")]
 pub struct SevenDayCreditPoint {
     pub date: String,
-    pub credits: f64,
+    pub credits: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]

@@ -197,13 +197,14 @@ export type CompleteCreditWindow = {
   endDate: string;
   credits: number | null;
   knownCredits?: number | null;
+  knownModels?: ModelCreditUsage[];
   models: ModelCreditUsage[];
   completeness: CreditWindowCompleteness;
 };
 
 export type SevenDayCreditPoint = {
   date: string;
-  credits: number;
+  credits: number | null;
 };
 
 export type ServerCreditAnalyticsResponse = {

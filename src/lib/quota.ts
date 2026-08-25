@@ -2,17 +2,25 @@ import type { CodexLimitWindow, CodexLimitsResponse } from "@/lib/api";
 
 /**
  * Shared primary quota selection used by Compact and Tray.
- * Picks the longest actual valid window returned by the server instead of
- * hardcoding a 5-hour/weekly plan assumption.
+ *
+ * Long-term quota wins: weekly when present, otherwise session. We do not
+ * infer the label from `windowMinutes` (e.g. 10080 != always "Weekly") so
+ * PROLITE/FREE / monthly-style plans are not mislabeled.
  */
 export function selectPrimaryQuota(
   limits: Pick<CodexLimitsResponse, "session" | "weekly"> | null,
 ): CodexLimitWindow | null {
-  const list = [limits?.session, limits?.weekly].filter(
-    (window): window is CodexLimitWindow => !!window,
-  );
-  if (list.length === 0) return null;
-  return list.reduce((a, b) =>
-    (a.windowMinutes ?? 0) >= (b.windowMinutes ?? 0) ? a : b,
-  );
+  return limits?.weekly ?? limits?.session ?? null;
+}
+
+/** Short tray prefix for the primary quota. Deliberately not plan-specific. */
+export function primaryQuotaTitlePrefix(): "M" {
+  return "M";
+}
+
+/** Display label used by Compact and Tray for the primary quota. */
+export function primaryQuotaLabel(
+  t: (key: string, options?: any) => string,
+): string {
+  return t("compact.current_quota");
 }

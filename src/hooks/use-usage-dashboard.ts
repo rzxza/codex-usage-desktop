@@ -32,7 +32,7 @@ import {
   type UsageRefreshResponse,
 } from "@/lib/api";
 import { formatCompactNumber, formatCurrency, formatCurrencyShort, formatNumber } from "@/lib/formatters";
-import { selectPrimaryQuota } from "@/lib/quota";
+import { primaryQuotaLabel, primaryQuotaTitlePrefix, selectPrimaryQuota } from "@/lib/quota";
 import type { DashboardView } from "@/components/dashboard-header";
 import { getExportDialogOptions, getExportFileName, getRangeLabel } from "@/lib/usage-dashboard";
 import tauriConfig from "../../src-tauri/tauri.conf.json";
@@ -705,11 +705,11 @@ export function useUsageDashboard() {
     const todayCost = todayRow ? todayRow.costUSD : 0;
 
     const primaryQuota = selectPrimaryQuota(codexLimits);
-    const primaryQuotaTitlePrefix = primaryQuota?.windowMinutes === 10080 ? "W" : "M";
+    const quotaTitlePrefix = primaryQuotaTitlePrefix();
 
     const titleParts: string[] = [];
     if (trayTitleShow.limit5h || trayTitleShow.limitWeekly) {
-      titleParts.push(formatTrayLimitTitle(primaryQuotaTitlePrefix, primaryQuota));
+      titleParts.push(formatTrayLimitTitle(quotaTitlePrefix, primaryQuota));
     }
 
     if (trayTitleShow.tokens) {
@@ -723,9 +723,7 @@ export function useUsageDashboard() {
     const items: TrayMenuItemDto[] = [];
 
     if (trayMenuShow.limit5h || trayMenuShow.limitWeekly) {
-      const quotaLabel = primaryQuota?.windowMinutes === 10080
-        ? t("limits.window_weekly")
-        : t("compact.current_quota");
+      const quotaLabel = primaryQuotaLabel(t);
       const text = primaryQuota
         ? `${quotaLabel}: ${Math.round(primaryQuota.remainingPercent)}% ${t("limits.remaining")} (${t("limits.consumed")}: ${Math.round(primaryQuota.usedPercent)}%); ${formatResetTime(primaryQuota.resetsAt, primaryQuota.windowMinutes, t)}`
         : `${quotaLabel}: ${t("limits.unavailable")}`;
