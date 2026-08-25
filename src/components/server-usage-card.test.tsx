@@ -132,8 +132,8 @@ describe("ServerUsageCard", () => {
 
     expect(screen.getByText("Server Usage")).toBeInTheDocument();
     expect(screen.getByText("Latest complete day")).toBeInTheDocument();
-    expect(screen.getByText("Last 7 complete days")).toBeInTheDocument();
-    expect(screen.getByText("Last 30 complete days")).toBeInTheDocument();
+    expect(screen.getByText("Last 7 days")).toBeInTheDocument();
+    expect(screen.getByText("Last 30 days")).toBeInTheDocument();
     expect(screen.getByText(/1,820/)).toBeInTheDocument();
     expect(screen.getByText(/15,300/)).toBeInTheDocument();
     expect(screen.getByText(/42,770/)).toBeInTheDocument();

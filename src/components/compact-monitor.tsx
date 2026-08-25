@@ -73,23 +73,29 @@ function formatCreditValue(value: number | null | undefined): string {
   return `≈${formatNumber(value)}`;
 }
 
-function WindowDiagnostic({
+function WindowStatus({
   window,
   t,
 }: {
   window: CompleteCreditWindow;
   t: (key: string, options?: any) => string;
 }) {
-  if (window.completeness.isComplete) return null;
-  const { completeDays, expectedDays, missingDates } = window.completeness;
-  const known = window.knownCredits;
+  const { completeDays, expectedDays, missingDates, isComplete } = window.completeness;
+  if (isComplete) {
+    return (
+      <p className="mt-1 text-[10px] text-muted-foreground">
+        {completeDays}/{expectedDays} {t("compact.day_short")} {t("compact.complete_short")}
+      </p>
+    );
+  }
+  const hasKnown = window.knownCredits !== null && window.knownCredits !== undefined;
   return (
     <p className="mt-1 text-[10px] leading-tight text-warning">
-      {known !== null && known !== undefined
-        ? `${t("compact.known")} ≈${formatNumber(known)} · `
-        : ""}
+      {hasKnown ? `${t("compact.known")} ` : ""}
       {completeDays}/{expectedDays} {t("compact.day_short")}
-      {missingDates.length > 0 ? ` · ${t("compact.missing")}: ${missingDates.join(", ")}` : ""}
+      {missingDates.length > 0
+        ? ` · ${t("compact.missing")}: ${missingDates.join(", ")}`
+        : ""}
     </p>
   );
 }
@@ -289,6 +295,8 @@ export function CompactMonitor() {
   const last7 = analytics?.last7CompleteDays;
   const previous7 = analytics?.previous7CompleteDays;
   const last30 = analytics?.last30CompleteDays;
+  const last7Display = last7 ? (last7.credits ?? last7.knownCredits ?? null) : null;
+  const last30Display = last30 ? (last30.credits ?? last30.knownCredits ?? null) : null;
   const latestDay = analytics?.latestCompleteDay;
   const latestDate = analytics?.latestCompleteDate ? analytics.latestCompleteDate.slice(5) : "";
   const modelPercent = (model: string) =>
@@ -432,26 +440,29 @@ export function CompactMonitor() {
             <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               {t("compact.last7_complete")}
             </p>
-            <p className="mt-1 font-mono text-sm font-bold tabular-nums">{formatCreditValue(last7?.credits)}</p>
-            {last7 && !last7.completeness.isComplete ? (
-              <WindowDiagnostic window={last7} t={t} />
-            ) : null}
+            <p className="mt-1 font-mono text-sm font-bold tabular-nums">
+              {last7Display !== null ? formatCreditValue(last7Display) : t("compact.no_data")}
+            </p>
+            {last7 ? <WindowStatus window={last7} t={t} /> : null}
           </div>
           <div className="rounded-lg border border-border/60 bg-surface p-2.5">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               {t("compact.last30_complete")}
             </p>
-            <p className="mt-1 font-mono text-sm font-bold tabular-nums">{formatCreditValue(last30?.credits)}</p>
-            {last30 && !last30.completeness.isComplete ? (
-              <WindowDiagnostic window={last30} t={t} />
-            ) : null}
+            <p className="mt-1 font-mono text-sm font-bold tabular-nums">
+              {last30Display !== null ? formatCreditValue(last30Display) : t("compact.no_data")}
+            </p>
+            {last30 ? <WindowStatus window={last30} t={t} /> : null}
           </div>
         </div>
 
         <div className="rounded-lg border border-border/60 bg-surface p-2.5">
           <div className="flex items-center justify-between">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{t("compact.seven_day_trend")}</p>
-            {analytics?.sevenDayDeltaPercent !== null && analytics?.sevenDayDeltaPercent !== undefined ? (
+            {analytics?.sevenDayDeltaPercent !== null &&
+              analytics?.sevenDayDeltaPercent !== undefined &&
+              last7?.completeness.isComplete &&
+              previous7?.completeness.isComplete ? (
               <span className={cn("text-[11px] font-bold tabular-nums", analytics.sevenDayDeltaPercent >= 0 ? "text-success" : "text-error")}>
                 {analytics.sevenDayDeltaPercent >= 0 ? "+" : ""}
                 {oneDecimal(analytics.sevenDayDeltaPercent)}%

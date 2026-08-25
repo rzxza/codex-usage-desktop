@@ -244,10 +244,14 @@ fn is_complete_day(
         return false;
     };
     let total_tokens = token_total(counts_day);
-    // A zero-usage day is complete as long as the counts row exists; it does
-    // not need a token-usage breakdown row.
+    // A zero-usage day is complete only when the breakdown does not claim any
+    // nonzero usage. If a breakdown exists with positive percent while counts
+    // say zero, the two source snapshots are inconsistent -> fail closed.
     if total_tokens == 0 {
-        return true;
+        return breakdowns_by_date
+            .get(date)
+            .map(|breakdown| breakdown.models.iter().all(|model| model.credits <= 0.0))
+            .unwrap_or(true);
     }
     let Some(breakdown_day) = breakdowns_by_date.get(date) else {
         return false;
@@ -1458,6 +1462,47 @@ mod tests {
             0
         );
         assert!(response.last_7_complete_days.credits.is_some());
+        assert!(response.last_7_complete_days.known_credits.is_some());
+    }
+
+    #[test]
+    fn zero_counts_with_nonzero_breakdown_fails_closed() {
+        let mut count_rows = Vec::new();
+        let mut breakdowns = Vec::new();
+        for day in 18..=24 {
+            let date = format!("2026-08-{day:02}");
+            if day == 21 {
+                // Counts say zero but breakdown claims nonzero usage: fail closed.
+                count_rows.push(counts(&date, 0, 0, 0, 0));
+                breakdowns.push(breakdown(
+                    &date,
+                    "percent",
+                    vec![("gpt-5.6-sol", "standard", 25.3)],
+                ));
+            } else {
+                count_rows.push(counts(&date, 100_000, 0, 100_000, 200_000));
+                breakdowns.push(breakdown(
+                    &date,
+                    "percent",
+                    vec![("gpt-5.6-luna", "standard", 100.0)],
+                ));
+            }
+        }
+        let response = build_server_credit_analytics(
+            count_rows,
+            breakdowns,
+            "2026-08-25",
+            "2026-08-01",
+            "2026-08-25",
+        );
+        assert_eq!(response.last_7_complete_days.completeness.complete_days, 6);
+        assert!(!response.last_7_complete_days.completeness.is_complete);
+        assert!(response
+            .last_7_complete_days
+            .completeness
+            .missing_dates
+            .contains(&"2026-08-21".to_string()));
+        assert_eq!(response.last_7_complete_days.credits, None);
         assert!(response.last_7_complete_days.known_credits.is_some());
     }
 

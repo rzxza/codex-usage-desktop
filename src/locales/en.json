@@ -698,13 +698,15 @@
     "stale_banner": "Last refresh failed - showing the most recent successful data.",
     "refreshing": "Refreshing…",
     "latest_complete_day": "Latest complete day",
-    "last_7_complete": "Last 7 complete days",
-    "last_30_complete": "Last 30 complete days",
+    "last_7_complete": "Last 7 days",
+    "last_30_complete": "Last 30 days",
     "incomplete": "Data incomplete",
     "latest_complete_date": "Latest complete",
     "known": "Known",
     "missing": "Missing",
-    "day_short": "d"
+    "day_short": "d",
+    "complete_short": "complete",
+    "no_data": "No data"
   },
   "compact": {
     "analytics_updated": "Analytics",
@@ -733,8 +735,8 @@
     "current_quota": "Current quota",
     "reset_cards": "Reset card ×{{count}}",
     "latest_complete_day": "Latest day",
-    "last7_complete": "7 complete",
-    "last30_complete": "30 complete",
+    "last7_complete": "Last 7 days",
+    "last30_complete": "Last 30 days",
     "seven_day_trend": "7-day trend",
     "calibration_short": "Cal",
     "samples_short": " samples",
@@ -744,6 +746,8 @@
     "incomplete": "Incomplete",
     "known": "Known",
     "missing": "Missing",
-    "day_short": "d"
+    "day_short": "d",
+    "complete_short": "complete",
+    "no_data": "No data"
   }
 }
