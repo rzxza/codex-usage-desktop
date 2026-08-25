@@ -167,6 +167,11 @@ pub fn build_server_credit_analytics(
     };
 
     let last_7_start = crate::date::shift_date_key(today, -6).unwrap_or_else(|_| today.to_string());
+    // Keep legacy `last30Days` a true 30-calendar-day window even though the
+    // upstream fetch horizon is now 45 days. This field is deprecated for UI
+    // but must not silently aggregate 45 days.
+    let legacy_last_30_start =
+        crate::date::shift_date_key(today, -29).unwrap_or_else(|_| today.to_string());
     let all_dates_vec: Vec<String> = all_dates.into_iter().collect();
     let last_7_dates: Vec<String> = all_dates_vec
         .iter()
@@ -175,7 +180,7 @@ pub fn build_server_credit_analytics(
         .collect();
     let last_30_dates: Vec<String> = all_dates_vec
         .iter()
-        .filter(|date| date.as_str() >= start_date && date.as_str() <= end_date)
+        .filter(|date| date.as_str() >= legacy_last_30_start.as_str() && date.as_str() <= today)
         .cloned()
         .collect();
 
@@ -1305,6 +1310,56 @@ mod tests {
             30
         );
         assert!(response.last_30_complete_days.completeness.is_complete);
+    }
+
+    #[test]
+    fn legacy_last30_days_stays_30_days_when_fetch_is_45() {
+        let mut count_rows = Vec::new();
+        let mut breakdowns = Vec::new();
+        let mut date = "2026-07-12".to_string();
+        let end = "2026-08-25".to_string();
+        while date.as_str() <= end.as_str() {
+            count_rows.push(counts(&date, 100_000, 0, 100_000, 200_000));
+            breakdowns.push(breakdown(
+                &date,
+                "percent",
+                vec![("gpt-5.6-luna", "standard", 100.0)],
+            ));
+            date = crate::date::shift_date_key(&date, 1).unwrap();
+        }
+
+        let response = build_server_credit_analytics(
+            count_rows,
+            breakdowns,
+            "2026-08-25",
+            "2026-07-12",
+            "2026-08-25",
+        );
+        let expected_legacy_sum: f64 = response
+            .daily
+            .iter()
+            .filter(|day| day.date.as_str() >= "2026-07-27" && day.date.as_str() <= "2026-08-25")
+            .filter_map(|day| day.credits)
+            .sum();
+        assert!(
+            (response.last_30_days.credits.unwrap() - expected_legacy_sum).abs() < 1e-6,
+            "legacy last30Days must aggregate only the 30-day window"
+        );
+        let early_sum: f64 = response
+            .daily
+            .iter()
+            .filter(|day| day.date.as_str() < "2026-07-27")
+            .filter_map(|day| day.credits)
+            .sum();
+        assert!(early_sum > 0.0);
+        assert!(
+            response.last_30_days.credits.unwrap()
+                < response
+                    .daily
+                    .iter()
+                    .filter_map(|day| day.credits)
+                    .sum::<f64>()
+        );
     }
 
     #[test]

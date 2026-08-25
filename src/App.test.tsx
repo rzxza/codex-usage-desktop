@@ -1772,17 +1772,16 @@ describe("App", () => {
     await waitFor(() => {
       expect(updateTrayMock).toHaveBeenCalledWith(expect.objectContaining({
         payload: expect.objectContaining({
-          title: "5h: 80%/3h | W: 55%/4d",
+          title: "W: 55%/4d",
           items: expect.arrayContaining([
-            expect.objectContaining({ id: "status_5h", text: expect.stringContaining("3 hours left") }),
-            expect.objectContaining({ id: "status_weekly", text: expect.stringContaining("4 days left") }),
+            expect.objectContaining({ id: "status_primary_quota", text: expect.stringContaining("4 days left") }),
           ]),
         }),
       }));
     });
   });
 
-  it("defaults the tray title to 5-hour and weekly limits", async () => {
+  it("defaults the tray title to the primary weekly quota", async () => {
     const now = new Date().getTime();
     vi.spyOn(Date, "now").mockReturnValue(now);
     const sessionReset = new Date(now + 3 * 60 * 60_000).toISOString();
@@ -1815,7 +1814,7 @@ describe("App", () => {
     await waitFor(() => {
       expect(updateTrayMock).toHaveBeenCalledWith(expect.objectContaining({
         payload: expect.objectContaining({
-          title: "5h: 80%/3h | W: 55%/4d",
+          title: "W: 55%/4d",
         }),
       }));
     });
@@ -1867,9 +1866,9 @@ describe("App", () => {
       expect(invokeMock.mock.calls.filter(([command]) => command === "fetch_codex_limits")).toHaveLength(2);
       expect(updateTrayMock).toHaveBeenCalledWith(expect.objectContaining({
         payload: expect.objectContaining({
-          title: "5h: 100%/soon",
+          title: "M: 100%/soon",
           items: expect.arrayContaining([
-            expect.objectContaining({ id: "status_5h", text: expect.stringContaining("100%") }),
+            expect.objectContaining({ id: "status_primary_quota", text: expect.stringContaining("100%") }),
           ]),
         }),
       }));

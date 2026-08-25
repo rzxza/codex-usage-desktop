@@ -138,9 +138,9 @@ html.compact-mode #root {
 }
 
 .compact-root.bg-background {
-  background-color: rgb(var(--background) / var(--compact-surface-alpha, 0.94)) !important;
+  background-color: rgb(var(--background) / var(--compact-surface-alpha, 0.9)) !important;
 }
 
 .compact-root .bg-surface {
-  background-color: rgb(var(--surface) / var(--compact-surface-alpha, 0.94)) !important;
+  background-color: rgb(var(--surface) / var(--compact-surface-alpha, 0.9)) !important;
 }

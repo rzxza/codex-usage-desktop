@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { availableMonitors, getCurrentWindow } from "@tauri-apps/api/window";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
@@ -7,11 +7,11 @@ import { RefreshCcw, ExternalLink, GripHorizontal, Minus, Contrast } from "lucid
 import {
   fetchCodexLimits,
   fetchServerCreditAnalytics,
-  type CodexLimitWindow,
   type CodexLimitsResponse,
   type ServerCreditAnalyticsResponse,
 } from "@/lib/api";
 import { formatNumber } from "@/lib/formatters";
+import { selectPrimaryQuota } from "@/lib/quota";
 import { cn } from "@/lib/utils";
 
 const LIMITS_REFRESH_MS = 60_000;
@@ -19,6 +19,7 @@ const ANALYTICS_REFRESH_MS = 5 * 60_000;
 const STALE_AFTER_MS = 15 * 60_000;
 const OPACITY_KEY = "compact_surface_opacity";
 const OPACITY_PRESETS = [1, 0.9, 0.8, 0.7] as const;
+const DEFAULT_SURFACE_OPACITY = 0.9;
 
 type FeedFreshness = "loading" | "live" | "stale" | "offline";
 export type OverallFeedState = "live" | "loading" | "stale" | "degraded" | "offline";
@@ -96,9 +97,9 @@ function Sparkline({ points }: { points: Array<{ date: string; credits: number }
 function loadOpacity(): number {
   try {
     const raw = Number(localStorage.getItem(OPACITY_KEY));
-    return OPACITY_PRESETS.includes(raw as (typeof OPACITY_PRESETS)[number]) ? raw : 0.94;
+    return OPACITY_PRESETS.includes(raw as (typeof OPACITY_PRESETS)[number]) ? raw : DEFAULT_SURFACE_OPACITY;
   } catch (_) {
-    return 0.94;
+    return DEFAULT_SURFACE_OPACITY;
   }
 }
 
@@ -257,11 +258,7 @@ export function CompactMonitor() {
     }
   };
 
-  const primaryQuota = useMemo<CodexLimitWindow | null>(() => {
-    const list = [limits?.session, limits?.weekly].filter((w): w is CodexLimitWindow => !!w);
-    if (list.length === 0) return null;
-    return list.reduce((a, b) => ((a.windowMinutes ?? 0) >= (b.windowMinutes ?? 0) ? a : b));
-  }, [limits]);
+  const primaryQuota = selectPrimaryQuota(limits);
 
   const quotaLabel = primaryQuota?.windowMinutes === 10080 ? t("compact.weekly") : t("compact.current_quota");
   const resetCardCount = limits?.resetCreditsAvailableCount ?? limits?.resetCredits?.length ?? 0;

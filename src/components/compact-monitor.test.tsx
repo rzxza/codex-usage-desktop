@@ -125,7 +125,7 @@ describe("CompactMonitor", () => {
     await waitFor(() => expect(invokeHandlers.analytics).toHaveBeenCalled());
     const root = document.querySelector(".compact-root");
     expect(root).not.toBeNull();
-    expect((root as HTMLElement).style.getPropertyValue("--compact-surface-alpha")).toBe("0.94");
+    expect((root as HTMLElement).style.getPropertyValue("--compact-surface-alpha")).toBe("0.9");
   });
 
   it("keeps quota on a 60s cycle and analytics on a 5min cycle", async () => {

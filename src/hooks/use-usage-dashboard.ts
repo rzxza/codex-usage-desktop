@@ -32,10 +32,11 @@ import {
   type UsageRefreshResponse,
 } from "@/lib/api";
 import { formatCompactNumber, formatCurrency, formatCurrencyShort, formatNumber } from "@/lib/formatters";
+import { selectPrimaryQuota } from "@/lib/quota";
 import type { DashboardView } from "@/components/dashboard-header";
 import { getExportDialogOptions, getExportFileName, getRangeLabel } from "@/lib/usage-dashboard";
 import tauriConfig from "../../src-tauri/tauri.conf.json";
-import { formatResetTime, hasSubscription } from "@/components/codex-limits-card";
+import { formatResetTime } from "@/components/codex-limits-card";
 
 function isNewerVersion(current: string, target: string): boolean {
   const parse = (v: string) => {
@@ -703,21 +704,12 @@ export function useUsageDashboard() {
     const todayTokens = todayRow ? todayRow.totalTokens : 0;
     const todayCost = todayRow ? todayRow.costUSD : 0;
 
-    const hasSub = hasSubscription(codexLimits);
+    const primaryQuota = selectPrimaryQuota(codexLimits);
+    const primaryQuotaTitlePrefix = primaryQuota?.windowMinutes === 10080 ? "W" : "M";
 
     const titleParts: string[] = [];
-    if (hasSub) {
-      if (trayTitleShow.limit5h) {
-        titleParts.push(formatTrayLimitTitle("5h", codexLimits?.session));
-      }
-      if (trayTitleShow.limitWeekly) {
-        titleParts.push(formatTrayLimitTitle("W", codexLimits?.weekly));
-      }
-    } else {
-      if (trayTitleShow.limit5h || trayTitleShow.limitWeekly) {
-        const activeWindow = codexLimits?.weekly ?? codexLimits?.session;
-        titleParts.push(formatTrayLimitTitle("M", activeWindow));
-      }
+    if (trayTitleShow.limit5h || trayTitleShow.limitWeekly) {
+      titleParts.push(formatTrayLimitTitle(primaryQuotaTitlePrefix, primaryQuota));
     }
 
     if (trayTitleShow.tokens) {
@@ -730,28 +722,14 @@ export function useUsageDashboard() {
 
     const items: TrayMenuItemDto[] = [];
 
-    if (hasSub) {
-      if (trayMenuShow.limit5h) {
-        const text = codexLimits?.session
-          ? `${t("limits.window_5hour")}: ${Math.round(codexLimits.session.remainingPercent)}% ${t("limits.remaining")} (${t("limits.consumed")}: ${Math.round(codexLimits.session.usedPercent)}%); ${formatResetTime(codexLimits.session.resetsAt, codexLimits.session.windowMinutes, t)}`
-          : `${t("limits.window_5hour")}: ${t("limits.unavailable")}`;
-        items.push({ id: "status_5h", text, enabled: false });
-      }
-
-      if (trayMenuShow.limitWeekly) {
-        const text = codexLimits?.weekly
-          ? `${t("limits.window_weekly")}: ${Math.round(codexLimits.weekly.remainingPercent)}% ${t("limits.remaining")} (${t("limits.consumed")}: ${Math.round(codexLimits.weekly.usedPercent)}%); ${formatResetTime(codexLimits.weekly.resetsAt, codexLimits.weekly.windowMinutes, t)}`
-          : `${t("limits.window_weekly")}: ${t("limits.unavailable")}`;
-        items.push({ id: "status_weekly", text, enabled: false });
-      }
-    } else {
-      if (trayMenuShow.limit5h || trayMenuShow.limitWeekly) {
-        const activeWindow = codexLimits?.weekly ?? codexLimits?.session;
-        const text = activeWindow
-          ? `${t("limits.window_monthly")}: ${Math.round(activeWindow.remainingPercent)}% ${t("limits.remaining")} (${t("limits.consumed")}: ${Math.round(activeWindow.usedPercent)}%)`
-          : `${t("limits.window_monthly")}: ${t("limits.unavailable")}`;
-        items.push({ id: "status_monthly", text, enabled: false });
-      }
+    if (trayMenuShow.limit5h || trayMenuShow.limitWeekly) {
+      const quotaLabel = primaryQuota?.windowMinutes === 10080
+        ? t("limits.window_weekly")
+        : t("compact.current_quota");
+      const text = primaryQuota
+        ? `${quotaLabel}: ${Math.round(primaryQuota.remainingPercent)}% ${t("limits.remaining")} (${t("limits.consumed")}: ${Math.round(primaryQuota.usedPercent)}%); ${formatResetTime(primaryQuota.resetsAt, primaryQuota.windowMinutes, t)}`
+        : `${quotaLabel}: ${t("limits.unavailable")}`;
+      items.push({ id: "status_primary_quota", text, enabled: false });
     }
 
     if ((trayMenuShow.limit5h || trayMenuShow.limitWeekly) && (trayMenuShow.tokens || trayMenuShow.cost)) {
@@ -769,11 +747,14 @@ export function useUsageDashboard() {
     }
 
     if (serverAnalytics) {
-      const todayCredits = serverAnalytics.today?.credits;
-      if (todayCredits !== null && todayCredits !== undefined) {
+      const latestCredits = serverAnalytics.latestCompleteDay?.credits;
+      if (latestCredits !== null && latestCredits !== undefined) {
+        const date = serverAnalytics.latestCompleteDate
+          ? serverAnalytics.latestCompleteDate.slice(5)
+          : "";
         items.push({
-          id: "status_today_credits",
-          text: `${t("compact.today_credits")}: ≈${formatNumber(todayCredits)}`,
+          id: "status_latest_credits",
+          text: `${t("compact.latest_complete_day")} ${date}: ≈${formatNumber(latestCredits)}`,
           enabled: false,
         });
       }
