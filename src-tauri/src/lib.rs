@@ -338,6 +338,25 @@ async fn check_for_updates(
             etag
         );
 
+        // RC: the fork does not have signing secrets / a release workflow yet,
+        // so the update channel is intentionally disabled to avoid checking a
+        // different source than the one builds are published to. Flip this
+        // together with wiring the fork release pipeline.
+        const UPDATES_ENABLED: bool = false;
+        if !UPDATES_ENABLED {
+            return Ok(UpdateCheckResponse {
+                has_update: false,
+                latest_version: current_version.clone(),
+                latest_tag: format!("v{current_version}"),
+                release_name: Some("Updates disabled in this RC build".to_string()),
+                release_notes: None,
+                release_url: "https://github.com/rzxza/codex-usage-desktop/releases".to_string(),
+                etag: None,
+                not_modified: None,
+                current_version,
+            });
+        }
+
         let client = reqwest::blocking::Client::builder()
             .timeout(std::time::Duration::from_secs(8))
             .build()
@@ -355,7 +374,8 @@ async fn check_for_updates(
             version: String,
         }
 
-        let manifest_url = "https://github.com/itvincent-git/codex-usage-desktop/releases/latest/download/latest.json";
+        let manifest_url =
+            "https://github.com/rzxza/codex-usage-desktop/releases/latest/download/latest.json";
         let manifest_response = client
             .get(manifest_url)
             .header("User-Agent", "codex-usage-desktop")
@@ -400,7 +420,7 @@ async fn check_for_updates(
             version
         );
         let mut api_request = client
-            .get("https://api.github.com/repos/itvincent-git/codex-usage-desktop/releases/latest")
+            .get("https://api.github.com/repos/rzxza/codex-usage-desktop/releases/latest")
             .header("User-Agent", "codex-usage-desktop")
             .header("Accept", "application/json");
 
@@ -424,8 +444,12 @@ async fn check_for_updates(
                 latest_version: version.clone(),
                 latest_tag: format!("app-v{}", version),
                 release_name: Some(format!("Codex Usage Desktop v{}", version)),
-                release_notes: Some("A new update is available. Please view the release page for details.".to_string()),
-                release_url: "https://github.com/itvincent-git/codex-usage-desktop/releases/latest".to_string(),
+                release_notes: Some(
+                    "A new update is available. Please view the release page for details."
+                        .to_string(),
+                ),
+                release_url: "https://github.com/rzxza/codex-usage-desktop/releases/latest"
+                    .to_string(),
                 etag,
                 not_modified: Some(true),
             });
@@ -440,13 +464,16 @@ async fn check_for_updates(
                 latest_tag: format!("app-v{}", version),
                 release_name: Some(format!("Codex Usage Desktop v{}", version)),
                 release_notes: None,
-                release_url: "https://github.com/itvincent-git/codex-usage-desktop/releases/latest".to_string(),
+                release_url: "https://github.com/rzxza/codex-usage-desktop/releases/latest"
+                    .to_string(),
                 etag: None,
                 not_modified: Some(false),
             });
         }
 
-        let response_etag = response.headers().get("etag")
+        let response_etag = response
+            .headers()
+            .get("etag")
             .and_then(|v| v.to_str().ok())
             .map(|s| s.to_string());
 
@@ -481,7 +508,8 @@ async fn check_for_updates(
                 latest_tag: format!("app-v{}", version),
                 release_name: Some(format!("Codex Usage Desktop v{}", version)),
                 release_notes: None,
-                release_url: "https://github.com/itvincent-git/codex-usage-desktop/releases/latest".to_string(),
+                release_url: "https://github.com/rzxza/codex-usage-desktop/releases/latest"
+                    .to_string(),
                 etag: None,
                 not_modified: Some(false),
             });
