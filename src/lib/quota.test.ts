@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { selectPrimaryQuota } from "./quota";
+import { primaryQuotaTitlePrefix, selectPrimaryQuota } from "./quota";
 
 describe("selectPrimaryQuota", () => {
   it("prefers weekly over session when both are present and have equal duration", () => {
@@ -35,5 +35,9 @@ describe("selectPrimaryQuota", () => {
 
   it("returns null when no windows exist", () => {
     expect(selectPrimaryQuota({ session: null, weekly: null })).toBeNull();
+  });
+
+  it("uses Q as the tray title prefix", () => {
+    expect(primaryQuotaTitlePrefix()).toBe("Q");
   });
 });

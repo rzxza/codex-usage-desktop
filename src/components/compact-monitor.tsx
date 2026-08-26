@@ -127,18 +127,33 @@ function Sparkline({ points }: { points: Array<{ date: string; credits: number |
         <path key={index} d={d} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
       ))}
       {points.map((point, i) => {
-        if (point.credits !== null) return null;
         const x = i * step;
+        if (point.credits === null) {
+          return (
+            <circle
+              key={point.date}
+              cx={x.toFixed(1)}
+              cy={height / 2}
+              r={2}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1"
+              opacity="0.6"
+            >
+              <title>{point.date}</title>
+            </circle>
+          );
+        }
+        const y = height - ((point.credits - min) / range) * (height - 4) - 2;
         return (
           <circle
             key={point.date}
             cx={x.toFixed(1)}
-            cy={height / 2}
-            r={2}
-            fill="none"
+            cy={y.toFixed(1)}
+            r={2.5}
+            fill="currentColor"
             stroke="currentColor"
             strokeWidth="1"
-            opacity="0.6"
           >
             <title>{point.date}</title>
           </circle>

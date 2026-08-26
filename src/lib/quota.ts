@@ -14,8 +14,8 @@ export function selectPrimaryQuota(
 }
 
 /** Short tray prefix for the primary quota. Deliberately not plan-specific. */
-export function primaryQuotaTitlePrefix(): "M" {
-  return "M";
+export function primaryQuotaTitlePrefix(): "Q" {
+  return "Q";
 }
 
 /** Display label used by Compact and Tray for the primary quota. */

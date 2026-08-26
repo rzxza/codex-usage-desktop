@@ -1772,7 +1772,7 @@ describe("App", () => {
     await waitFor(() => {
       expect(updateTrayMock).toHaveBeenCalledWith(expect.objectContaining({
         payload: expect.objectContaining({
-          title: "M: 55%/4d",
+          title: "Q: 55%/4d",
           items: expect.arrayContaining([
             expect.objectContaining({ id: "status_primary_quota", text: expect.stringContaining("4 days left") }),
           ]),
@@ -1814,7 +1814,7 @@ describe("App", () => {
     await waitFor(() => {
       expect(updateTrayMock).toHaveBeenCalledWith(expect.objectContaining({
         payload: expect.objectContaining({
-          title: "M: 55%/4d",
+          title: "Q: 55%/4d",
         }),
       }));
     });
@@ -1866,7 +1866,7 @@ describe("App", () => {
       expect(invokeMock.mock.calls.filter(([command]) => command === "fetch_codex_limits")).toHaveLength(2);
       expect(updateTrayMock).toHaveBeenCalledWith(expect.objectContaining({
         payload: expect.objectContaining({
-          title: "M: 100%/soon",
+          title: "Q: 100%/soon",
           items: expect.arrayContaining([
             expect.objectContaining({ id: "status_primary_quota", text: expect.stringContaining("100%") }),
           ]),

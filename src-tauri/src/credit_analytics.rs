@@ -354,10 +354,7 @@ fn seven_day_series(
     let mut current = start_date.clone();
     while current.as_str() <= end_date {
         let credits = if is_complete_day(&current, today, counts_by_date, breakdowns_by_date) {
-            daily_by_date
-                .get(&current)
-                .and_then(|day| day.credits)
-                .or(Some(0.0))
+            daily_by_date.get(&current).and_then(|day| day.credits)
         } else {
             None
         };
@@ -1507,6 +1504,56 @@ mod tests {
             .contains(&"2026-08-21".to_string()));
         assert_eq!(response.last_7_complete_days.credits, None);
         assert!(response.last_7_complete_days.known_credits.is_some());
+    }
+
+    #[test]
+    fn seven_day_series_keeps_seven_slots_with_null_and_zero() {
+        let mut count_rows = Vec::new();
+        let mut breakdowns = Vec::new();
+        for day in 18..=24 {
+            let date = format!("2026-08-{day:02}");
+            if day == 21 {
+                // Completely missing source rows -> unknown null slot.
+                continue;
+            }
+            if day == 22 {
+                // Explicit zero usage, no breakdown -> complete zero day.
+                count_rows.push(counts(&date, 0, 0, 0, 0));
+                continue;
+            }
+            count_rows.push(counts(&date, 100_000, 0, 100_000, 200_000));
+            breakdowns.push(breakdown(
+                &date,
+                "percent",
+                vec![("gpt-5.6-luna", "standard", 100.0)],
+            ));
+        }
+        let response = build_server_credit_analytics(
+            count_rows,
+            breakdowns,
+            "2026-08-25",
+            "2026-08-01",
+            "2026-08-25",
+        );
+        assert_eq!(response.seven_day_series.len(), 7);
+        let missing = response
+            .seven_day_series
+            .iter()
+            .find(|point| point.date == "2026-08-21")
+            .unwrap();
+        assert_eq!(missing.credits, None);
+        let zero = response
+            .seven_day_series
+            .iter()
+            .find(|point| point.date == "2026-08-22")
+            .unwrap();
+        assert_eq!(zero.credits, Some(0.0));
+        let normal = response
+            .seven_day_series
+            .iter()
+            .find(|point| point.date == "2026-08-20")
+            .unwrap();
+        assert!(normal.credits.unwrap() > 0.0);
     }
 
     #[test]

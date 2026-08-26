@@ -250,6 +250,24 @@ describe("CompactMonitor", () => {
     expect(document.querySelector('svg[aria-label="7 day sparkline"]')).not.toBeNull();
   });
 
+  it("sparkline draws solid markers for known points and hollow markers for missing points", async () => {
+    const partial = {
+      ...analyticsPayload,
+      sevenDaySeries: [
+        ...analyticsPayload.sevenDaySeries.slice(0, 3),
+        { date: "2026-08-20", credits: null },
+        ...analyticsPayload.sevenDaySeries.slice(4),
+      ],
+    };
+    invokeHandlers.analytics.mockResolvedValue(partial);
+    render(<CompactMonitor />);
+    await act(async () => {});
+    const svg = document.querySelector('svg[aria-label="7 day sparkline"]');
+    expect(svg).not.toBeNull();
+    expect(svg?.querySelectorAll('circle[fill="currentColor"]').length).toBeGreaterThan(0);
+    expect(svg?.querySelectorAll('circle[fill="none"]').length).toBeGreaterThan(0);
+  });
+
   it("manual refresh refetches both endpoints", async () => {
     vi.useFakeTimers();
     render(<CompactMonitor />);
