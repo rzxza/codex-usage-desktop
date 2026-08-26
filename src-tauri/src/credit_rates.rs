@@ -21,9 +21,17 @@ pub const BASE_INPUT_PER_MILLION: f64 = 5.0;
 pub const BASE_CACHED_INPUT_PER_MILLION: f64 = 0.5;
 pub const BASE_OUTPUT_PER_MILLION: f64 = 30.0;
 
-pub const MODEL_RATE_TABLE: [ModelRateEntry; 3] = [
+pub const MODEL_RATE_TABLE: [ModelRateEntry; 4] = [
     ModelRateEntry {
         model: "gpt-5.6-sol",
+        speed: "standard",
+        input_per_million_tokens: 125.0,
+        cached_input_per_million_tokens: 12.5,
+        output_per_million_tokens: 750.0,
+        base_multiplier: 25,
+    },
+    ModelRateEntry {
+        model: "gpt-5.5",
         speed: "standard",
         input_per_million_tokens: 125.0,
         cached_input_per_million_tokens: 12.5,
@@ -49,8 +57,8 @@ pub const MODEL_RATE_TABLE: [ModelRateEntry; 3] = [
 ];
 
 pub const RATE_TABLE_SOURCE: &str =
-    "OpenAI Codex rate card (https://help.openai.com/en/articles/20001106-codex-rate-card), included-usage column";
-pub const RATE_TABLE_UPDATED_AT: &str = "2026-08-21";
+    "OpenAI Codex rate card (https://help.openai.com/en/articles/20001106-codex-rate-card), included-usage column; GPT-5.5 standard uses the same rate vector as GPT-5.6 Sol";
+pub const RATE_TABLE_UPDATED_AT: &str = "2026-08-26";
 
 pub fn lookup_model_rate(model: &str) -> Option<&'static ModelRateEntry> {
     MODEL_RATE_TABLE.iter().find(|entry| entry.model == model)
@@ -72,12 +80,12 @@ mod tests {
     fn rate_table_matches_v0_1_rate_card() {
         assert_eq!(
             RATE_TABLE_SOURCE,
-            "OpenAI Codex rate card (https://help.openai.com/en/articles/20001106-codex-rate-card), included-usage column"
+            "OpenAI Codex rate card (https://help.openai.com/en/articles/20001106-codex-rate-card), included-usage column; GPT-5.5 standard uses the same rate vector as GPT-5.6 Sol"
         );
         assert_eq!(RATE_PROFILE_ID, "included_usage_equivalent_v1");
         assert!(RATE_PROFILE_PURPOSE.contains("not purchased-credit billing"));
-        assert_eq!(RATE_TABLE_UPDATED_AT, "2026-08-21");
-        assert_eq!(MODEL_RATE_TABLE.len(), 3);
+        assert_eq!(RATE_TABLE_UPDATED_AT, "2026-08-26");
+        assert_eq!(MODEL_RATE_TABLE.len(), 4);
 
         let sol = &MODEL_RATE_TABLE[0];
         assert_eq!(sol.model, "gpt-5.6-sol");
@@ -87,7 +95,15 @@ mod tests {
         assert_eq!(sol.output_per_million_tokens, 750.0);
         assert_eq!(sol.base_multiplier, 25);
 
-        let terra = &MODEL_RATE_TABLE[1];
+        let gpt55 = &MODEL_RATE_TABLE[1];
+        assert_eq!(gpt55.model, "gpt-5.5");
+        assert_eq!(gpt55.speed, "standard");
+        assert_eq!(gpt55.input_per_million_tokens, 125.0);
+        assert_eq!(gpt55.cached_input_per_million_tokens, 12.5);
+        assert_eq!(gpt55.output_per_million_tokens, 750.0);
+        assert_eq!(gpt55.base_multiplier, 25);
+
+        let terra = &MODEL_RATE_TABLE[2];
         assert_eq!(terra.model, "gpt-5.6-terra");
         assert_eq!(terra.speed, "standard");
         assert_eq!(terra.input_per_million_tokens, 50.0);
@@ -95,7 +111,7 @@ mod tests {
         assert_eq!(terra.output_per_million_tokens, 300.0);
         assert_eq!(terra.base_multiplier, 10);
 
-        let luna = &MODEL_RATE_TABLE[2];
+        let luna = &MODEL_RATE_TABLE[3];
         assert_eq!(luna.model, "gpt-5.6-luna");
         assert_eq!(luna.speed, "standard");
         assert_eq!(luna.input_per_million_tokens, 5.0);
@@ -106,7 +122,7 @@ mod tests {
 
     #[test]
     fn rate_table_is_strictly_proportional() {
-        let luna = &MODEL_RATE_TABLE[2];
+        let luna = &MODEL_RATE_TABLE[3];
         for entry in &MODEL_RATE_TABLE {
             let multiplier = f64::from(entry.base_multiplier);
             assert_eq!(
@@ -128,31 +144,19 @@ mod tests {
     }
 
     #[test]
-    fn table_contains_only_the_three_allowlisted_models() {
+    fn table_contains_only_the_four_allowlisted_models() {
         let models: Vec<&str> = MODEL_RATE_TABLE.iter().map(|entry| entry.model).collect();
-        assert_eq!(models, vec!["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"]);
-        assert_eq!(models.len(), 3);
         assert_eq!(
-            MODEL_RATE_TABLE
-                .iter()
-                .filter(|e| e.model == "gpt-5.6-sol")
-                .count(),
-            1
+            models,
+            vec!["gpt-5.6-sol", "gpt-5.5", "gpt-5.6-terra", "gpt-5.6-luna"]
         );
-        assert_eq!(
-            MODEL_RATE_TABLE
-                .iter()
-                .filter(|e| e.model == "gpt-5.6-terra")
-                .count(),
-            1
-        );
-        assert_eq!(
-            MODEL_RATE_TABLE
-                .iter()
-                .filter(|e| e.model == "gpt-5.6-luna")
-                .count(),
-            1
-        );
+        assert_eq!(models.len(), 4);
+        for model in ["gpt-5.6-sol", "gpt-5.5", "gpt-5.6-terra", "gpt-5.6-luna"] {
+            assert_eq!(
+                MODEL_RATE_TABLE.iter().filter(|e| e.model == model).count(),
+                1
+            );
+        }
     }
 
     #[test]
@@ -160,11 +164,11 @@ mod tests {
         let unknown_models = [
             "",
             "gpt-5.6",
-            "gpt-5.6-sol-preview",
+            "gpt-5.5-preview",
             "openai/gpt-5.6-sol",
             "GPT-5.6-SOL",
             "gpt-4.1",
-            "gpt-5.5",
+            "gpt-5.6-sol-fast",
         ];
         for model in unknown_models {
             assert!(
@@ -194,7 +198,7 @@ mod tests {
 
     #[test]
     fn rate_multiplier_matches_rate_vectors() {
-        let luna = &MODEL_RATE_TABLE[2];
+        let luna = &MODEL_RATE_TABLE[3];
         for entry in &MODEL_RATE_TABLE {
             let multiplier = f64::from(entry.base_multiplier);
             let ratio = entry.input_per_million_tokens / luna.input_per_million_tokens;
@@ -215,8 +219,8 @@ mod tests {
 
     #[test]
     fn unsupported_model_is_rejected() {
-        assert!(lookup_model_rate("gpt-5.5").is_none());
-        assert!(!is_supported_rate_model("gpt-5.5"));
+        assert!(lookup_model_rate("gpt-5.5-preview").is_none());
+        assert!(!is_supported_rate_model("gpt-5.5-preview"));
         assert!(lookup_model_rate("").is_none());
         assert!(!is_supported_rate_model("gpt-5.6-sol-fast"));
     }
@@ -238,6 +242,7 @@ mod tests {
         assert!(!(is_supported_rate_model("gpt-5.6-sol") && is_standard_speed("standard ")));
         assert!(!(is_supported_rate_model("") && is_standard_speed("standard")));
         assert!(is_supported_rate_model("gpt-5.6-sol") && is_standard_speed("standard"));
+        assert!(is_supported_rate_model("gpt-5.5") && is_standard_speed("standard"));
         assert!(is_supported_rate_model("gpt-5.6-terra") && is_standard_speed("standard"));
         assert!(is_supported_rate_model("gpt-5.6-luna") && is_standard_speed("standard"));
     }

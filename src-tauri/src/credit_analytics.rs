@@ -368,7 +368,7 @@ fn seven_day_series(
 }
 
 /// Percentage-point share below which unsupported model/speed entries in a
-/// breakdown are considered legacy residue (e.g. `gpt-5.5: 0.0`) and ignored.
+/// breakdown are considered legacy residue (e.g. `gpt-5.6-sol-preview: 0.0`) and ignored.
 /// Anything above this threshold makes the whole day ineligible so unknown
 /// rates are never guessed (fail closed).
 const NEGLIGIBLE_MODEL_PERCENT: f64 = 0.05;
@@ -782,8 +782,8 @@ mod tests {
 
     #[test]
     fn ignores_zero_percent_unknown_legacy_models() {
-        // Real WHAM breakdowns keep listing retired models (e.g. gpt-5.5) with a
-        // zero percent share; such residue must not invalidate the whole day.
+        // Real WHAM breakdowns can list unsupported model names with a zero
+        // percent share; such residue must not invalidate the whole day.
         let counts = vec![
             counts("2026-08-20", 100_000, 0, 100_000, 200_000),
             counts("2026-08-19", 100_000, 0, 100_000, 200_000),
@@ -794,7 +794,7 @@ mod tests {
                 "percent",
                 vec![
                     ("gpt-5.6-sol", "standard", 50.0),
-                    ("gpt-5.5", "standard", 0.0),
+                    ("gpt-5.6-sol-preview", "standard", 0.0),
                 ],
             ),
             breakdown(
@@ -802,7 +802,7 @@ mod tests {
                 "percent",
                 vec![
                     ("gpt-5.6-sol", "standard", 50.0),
-                    ("gpt-5.5", "standard", 0.0),
+                    ("gpt-5.6-sol-preview", "standard", 0.0),
                 ],
             ),
         ];
@@ -830,7 +830,7 @@ mod tests {
                 "percent",
                 vec![
                     ("gpt-5.6-sol", "standard", 50.0),
-                    ("gpt-5.5", "standard", 6.9),
+                    ("gpt-5.6-sol-preview", "standard", 6.9),
                 ],
             ),
             breakdown(
@@ -1554,6 +1554,81 @@ mod tests {
             .find(|point| point.date == "2026-08-20")
             .unwrap();
         assert!(normal.credits.unwrap() > 0.0);
+    }
+
+    #[test]
+    fn mixed_gpt55_sol_luna_terra_is_complete() {
+        let mut count_rows = Vec::new();
+        let mut breakdowns = Vec::new();
+        for day in 16..=22 {
+            let date = format!("2026-08-{day:02}");
+            count_rows.push(counts(&date, 100_000, 0, 100_000, 200_000));
+            if day == 21 {
+                breakdowns.push(breakdown(
+                    &date,
+                    "percent",
+                    vec![
+                        ("gpt-5.6-sol", "standard", 25.0),
+                        ("gpt-5.6-luna", "standard", 25.0),
+                        ("gpt-5.5", "standard", 25.0),
+                        ("gpt-5.6-terra", "standard", 25.0),
+                    ],
+                ));
+            } else {
+                breakdowns.push(breakdown(
+                    &date,
+                    "percent",
+                    vec![("gpt-5.6-luna", "standard", 100.0)],
+                ));
+            }
+        }
+        let response = build_server_credit_analytics(
+            count_rows,
+            breakdowns,
+            "2026-08-23",
+            "2026-08-01",
+            "2026-08-23",
+        );
+        assert_eq!(response.latest_complete_date.as_deref(), Some("2026-08-22"));
+        assert!(response.last_7_complete_days.completeness.is_complete);
+        assert_eq!(response.last_7_complete_days.completeness.complete_days, 7);
+    }
+
+    #[test]
+    fn mixed_gpt55_sol_luna_is_complete() {
+        let mut count_rows = Vec::new();
+        let mut breakdowns = Vec::new();
+        for day in 16..=22 {
+            let date = format!("2026-08-{day:02}");
+            count_rows.push(counts(&date, 100_000, 0, 100_000, 200_000));
+            if day == 22 {
+                breakdowns.push(breakdown(
+                    &date,
+                    "percent",
+                    vec![
+                        ("gpt-5.6-sol", "standard", 40.0),
+                        ("gpt-5.6-luna", "standard", 30.0),
+                        ("gpt-5.5", "standard", 30.0),
+                    ],
+                ));
+            } else {
+                breakdowns.push(breakdown(
+                    &date,
+                    "percent",
+                    vec![("gpt-5.6-luna", "standard", 100.0)],
+                ));
+            }
+        }
+        let response = build_server_credit_analytics(
+            count_rows,
+            breakdowns,
+            "2026-08-23",
+            "2026-08-01",
+            "2026-08-23",
+        );
+        assert_eq!(response.latest_complete_date.as_deref(), Some("2026-08-22"));
+        assert!(response.last_7_complete_days.completeness.is_complete);
+        assert_eq!(response.last_7_complete_days.completeness.complete_days, 7);
     }
 
     #[test]
