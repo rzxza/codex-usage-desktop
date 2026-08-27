@@ -748,6 +748,8 @@
     "missing": "Missing",
     "day_short": "d",
     "complete_short": "complete",
+    "pin": "Pin on top",
+    "unpin": "Unpin",
     "no_data": "No data"
   }
 }

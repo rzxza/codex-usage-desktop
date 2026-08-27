@@ -753,6 +753,8 @@
     "missing": "缺",
     "day_short": "日",
     "complete_short": "完整",
+    "pin": "置顶",
+    "unpin": "取消置顶",
     "no_data": "无数据"
   }
 }
