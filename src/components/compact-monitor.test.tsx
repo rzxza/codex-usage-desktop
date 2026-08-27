@@ -118,6 +118,7 @@ describe("CompactMonitor", () => {
     expect(screen.getByText("≈10,571")).toBeInTheDocument();
     expect(screen.getByText("≈79,345")).toBeInTheDocument();
     expect(screen.getByText(/S 90.8 · L 6.9 · T 2.3/)).toBeInTheDocument();
+    expect(screen.getByText(/vs\. prev 7d \+17\.5%/)).toBeInTheDocument();
   });
 
   it("applies compact-root class and default surface opacity variable", async () => {

@@ -633,6 +633,7 @@ export function CompactMonitor() {
               last7?.completeness.isComplete &&
               previous7?.completeness.isComplete ? (
               <span className={cn("text-[11px] font-bold tabular-nums px-1.5 py-0.5 rounded bg-muted/40", analytics.sevenDayDeltaPercent >= 0 ? "text-success" : "text-error")}>
+                {t("compact.vs_prev_7d")}{" "}
                 {analytics.sevenDayDeltaPercent >= 0 ? "+" : ""}
                 {oneDecimal(analytics.sevenDayDeltaPercent)}%
               </span>
