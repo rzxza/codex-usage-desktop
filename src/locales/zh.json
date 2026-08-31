@@ -775,5 +775,24 @@
     "reason_zero_counts_conflict": "counts 与 breakdown 冲突",
     "reason_no_usable_model_share": "无可用模型占比",
     "reason_uncalculable_credits": "无法计算 credits"
+  },
+  "eink": {
+    "title": "E-Ink 墨水屏输出",
+    "subtitle": "4.2 英寸 400×300 三色（黑/白/红），不依赖 BLE 也可导出 PNG。",
+    "enabled": "启用 E-Ink 输出",
+    "auto_push": "自动推送",
+    "refresh_interval": "刷新间隔",
+    "device": "设备",
+    "device_manual": "未选择（手工上传）",
+    "preview": "预览墨水屏",
+    "export_png": "导出墨水屏图片",
+    "push_now": "立即推送",
+    "preview_ready": "预览已生成",
+    "preview_failed": "预览生成失败",
+    "export_ready": "PNG 已导出",
+    "export_failed": "PNG 导出失败",
+    "push_ok": "Mock 推送成功",
+    "push_failed": "推送失败",
+    "push_manual_hint": "请使用“签变时光”客户端手工上传导出的 PNG"
   }
 }

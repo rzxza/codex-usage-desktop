@@ -1,7 +1,13 @@
 import { RotateCcw, Sparkles, RefreshCw, CheckCircle, ArrowUpRight, RotateCw, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import type { UpdateCheckResponse, CodexLimitsResponse } from "@/lib/api";
+import type {
+  UpdateCheckResponse,
+  CodexLimitsResponse,
+  CodexResetSignalResponse,
+  ServerCreditAnalyticsResponse,
+} from "@/lib/api";
+import { EinkPanel } from "./eink-panel";
 import type { UpdateInstallStatus, UpdateProgressState } from "@/hooks/use-usage-dashboard";
 import { hasSubscription } from "./codex-limits-card";
 import tauriConfig from "../../src-tauri/tauri.conf.json";
@@ -40,6 +46,8 @@ type SettingsPageProps = {
   trayMenuShow: { limit5h: boolean; limitWeekly: boolean; tokens: boolean; cost: boolean };
   onTrayMenuShowChange: (key: "limit5h" | "limitWeekly" | "tokens" | "cost", value: boolean) => void;
   codexLimits: CodexLimitsResponse | null;
+  serverAnalytics: ServerCreditAnalyticsResponse | null;
+  codexResetSignal: CodexResetSignalResponse | null;
 };
 
 const TRAY_OPTION_KEYS = {
@@ -77,6 +85,8 @@ export function SettingsPage({
   trayMenuShow,
   onTrayMenuShowChange,
   codexLimits,
+  serverAnalytics,
+  codexResetSignal,
 }: SettingsPageProps) {
   const { t, i18n } = useTranslation();
   const readCompactFlag = (key: string) => {
@@ -498,6 +508,12 @@ export function SettingsPage({
           </div>
         </CardContent>
       </Card>
+
+      <EinkPanel
+        limits={codexLimits}
+        analytics={serverAnalytics}
+        resetSignal={codexResetSignal}
+      />
     </>
   );
 

@@ -421,6 +421,8 @@ export default function App() {
               trayMenuShow={trayMenuShow}
               onTrayMenuShowChange={handleTrayMenuShowChange}
               codexLimits={codexLimits}
+              serverAnalytics={serverAnalytics}
+              codexResetSignal={codexResetSignal}
             />
           ) : null}
 

@@ -770,5 +770,24 @@
     "reason_zero_counts_conflict": "counts/breakdown conflict",
     "reason_no_usable_model_share": "no usable model share",
     "reason_uncalculable_credits": "cannot calculate credits"
+  },
+  "eink": {
+    "title": "E-Ink Output",
+    "subtitle": "4.2-inch 400x300 tri-color (black/white/red); PNG export works without BLE.",
+    "enabled": "Enable E-Ink output",
+    "auto_push": "Auto push",
+    "refresh_interval": "Refresh interval",
+    "device": "Device",
+    "device_manual": "Not selected (manual upload)",
+    "preview": "Preview E-Ink",
+    "export_png": "Export E-Ink PNG",
+    "push_now": "Push now",
+    "preview_ready": "Preview generated",
+    "preview_failed": "Preview generation failed",
+    "export_ready": "PNG exported",
+    "export_failed": "PNG export failed",
+    "push_ok": "Mock push succeeded",
+    "push_failed": "Push failed",
+    "push_manual_hint": "Use the 签变时光 client to manually upload the exported PNG"
   }
 }
