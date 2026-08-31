@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
 import { buildEinkSnapshot, hashEinkPixels } from "./snapshot";
 import {
@@ -202,6 +203,36 @@ describe("eink refresh policy and pixel deduplication", () => {
     const c = sampleSnapshot({ quotaRemainingPercent: 40 });
     const matrixC = renderEinkMatrix(c);
     expect(hashEinkPixels(matrixC)).not.toBe(hashEinkPixels(matrixA));
+  });
+
+  it("changes final pixel hash when 7D credits text changes", () => {
+    const a = sampleSnapshot({ sevenDayCredits: 20700 });
+    const b = sampleSnapshot({ sevenDayCredits: 25400 });
+    expect(hashEinkPixels(renderEinkMatrix(a))).not.toBe(hashEinkPixels(renderEinkMatrix(b)));
+  });
+
+  it("changes final pixel hash when latestCompleteCredits changes", () => {
+    const a = sampleSnapshot({ latestCompleteCredits: 6738 });
+    const b = sampleSnapshot({ latestCompleteCredits: 8100 });
+    expect(hashEinkPixels(renderEinkMatrix(a))).not.toBe(hashEinkPixels(renderEinkMatrix(b)));
+  });
+
+  it("changes final pixel hash when resetCardCount changes", () => {
+    const a = sampleSnapshot({ resetCardCount: 1 });
+    const b = sampleSnapshot({ resetCardCount: 2 });
+    expect(hashEinkPixels(renderEinkMatrix(a))).not.toBe(hashEinkPixels(renderEinkMatrix(b)));
+  });
+
+  it("changes final pixel hash when reset confidence changes on likely status", () => {
+    const a = sampleSnapshot({ resetSignalStatus: "likely", resetSignalConfidence: 0.83 });
+    const b = sampleSnapshot({ resetSignalStatus: "likely", resetSignalConfidence: 0.95 });
+    expect(hashEinkPixels(renderEinkMatrix(a))).not.toBe(hashEinkPixels(renderEinkMatrix(b)));
+  });
+
+  it("keeps final pixel hash unchanged when purely non-visible metadata changes", () => {
+    const a = sampleSnapshot({ quotaResetAt: "2026-08-30T14:30:00Z" });
+    const b = sampleSnapshot({ quotaResetAt: "2026-08-30T14:30:00Z" });
+    expect(hashEinkPixels(renderEinkMatrix(a))).toBe(hashEinkPixels(renderEinkMatrix(b)));
   });
 
   it("respects minimum refresh interval", () => {

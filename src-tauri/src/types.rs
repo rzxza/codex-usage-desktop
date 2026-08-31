@@ -245,15 +245,6 @@ pub struct CodexLimitsResponse {
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct CodexResetSignalWindow {
-    pub label: Option<String>,
-    pub starts_at: Option<String>,
-    pub ends_at: Option<String>,
-    pub confidence: Option<f64>,
-}
-
-#[derive(Debug, Clone, Serialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
 pub struct CodexResetSignalResponse {
     pub status: String,
     pub kind: Option<String>,

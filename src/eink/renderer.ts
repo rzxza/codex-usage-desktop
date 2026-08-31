@@ -40,6 +40,23 @@ export function renderSkeleton(snapshot: EinkSnapshot): EinkPixelMatrix {
   // Credits section separator
   fillRect(matrix, 16, 96, 368, 1, 1);
 
+  // Subtitle card count
+  if (snapshot.resetCardCount > 0) {
+    fillRect(matrix, 160, 84, Math.min(40, snapshot.resetCardCount * 6), 4, 1);
+  }
+
+  // Latest complete day credits representation
+  if (snapshot.latestCompleteCredits !== null) {
+    const lcW = Math.min(50, Math.round((snapshot.latestCompleteCredits / 1000) * 4));
+    fillRect(matrix, 60, 114, lcW, 4, 1);
+  }
+
+  // 7D Credits representation
+  if (snapshot.sevenDayCredits !== null) {
+    const c7W = Math.min(50, Math.round((snapshot.sevenDayCredits / 1000) * 2));
+    fillRect(matrix, 45, 138, c7W, 4, 1);
+  }
+
   // 7D Coverage highlight (red if incomplete)
   const cov7 = snapshot.sevenDayCoverage;
   const cov7Incomplete = cov7.completeDays < cov7.expectedDays;
@@ -105,7 +122,10 @@ export function renderSkeleton(snapshot: EinkSnapshot): EinkPixelMatrix {
   fillRect(matrix, 16, 172, 368, 1, 1);
   const resetStatus = snapshot.resetSignalStatus;
   if (resetStatus === "scheduled" || resetStatus === "likely") {
-    fillRect(matrix, 16, 190, 140, 14, 2);
+    const confW = snapshot.resetSignalConfidence
+      ? Math.round(snapshot.resetSignalConfidence * 40)
+      : 0;
+    fillRect(matrix, 16, 190, 140 + confW, 14, 2);
   } else if (resetStatus === "completed") {
     fillRect(matrix, 16, 190, 100, 14, 1);
   } else if (resetStatus === "unavailable") {
@@ -124,6 +144,17 @@ export function renderSkeleton(snapshot: EinkSnapshot): EinkPixelMatrix {
 }
 
 export function renderEinkMatrix(snapshot: EinkSnapshot): EinkPixelMatrix {
+  if (typeof document !== "undefined") {
+    try {
+      const canvas = renderEinkCanvas(snapshot);
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        return quantizeCanvas(canvas);
+      }
+    } catch {
+      // Fallback to pure matrix renderer
+    }
+  }
   return renderSkeleton(snapshot);
 }
 
@@ -183,7 +214,9 @@ export function renderEinkCanvas(snapshot: EinkSnapshot): HTMLCanvasElement {
   canvas.width = EINK_WIDTH;
   canvas.height = EINK_HEIGHT;
   const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Canvas 2D context unavailable");
+  if (!ctx) {
+    return canvas;
+  }
 
   ctx.fillStyle = "#FFFFFF";
   ctx.fillRect(0, 0, EINK_WIDTH, EINK_HEIGHT);
@@ -193,7 +226,7 @@ export function renderEinkCanvas(snapshot: EinkSnapshot): HTMLCanvasElement {
   ctx.font = "bold 15px 'Microsoft YaHei', 'Segoe UI', Arial, sans-serif";
   ctx.fillText("CODEX MONITOR", 16, 24);
   ctx.font = "bold 12px 'Microsoft YaHei', 'Segoe UI', Arial, sans-serif";
-  ctx.fillText("LIVE", 355, 24);
+  ctx.fillText("CODEX", 345, 24);
   ctx.fillRect(16, 32, 368, 2);
 
   // 2. Quota Section
@@ -385,8 +418,7 @@ export function quantizeCanvas(canvas: HTMLCanvasElement): EinkPixelMatrix {
 }
 
 export async function snapshotToPngBlob(snapshot: EinkSnapshot): Promise<Blob> {
-  const canvas = renderEinkCanvas(snapshot);
-  const matrix = quantizeCanvas(canvas);
+  const matrix = renderEinkMatrix(snapshot);
   const quantized = createCanvasFromMatrix(matrix);
   return await new Promise<Blob>((resolve, reject) => {
     quantized.toBlob((blob) => {

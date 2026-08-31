@@ -61,20 +61,3 @@ export function hashEinkPixels(matrix: import("./types").EinkPixelMatrix): strin
   }
   return (hash >>> 0).toString(16).padStart(8, "0");
 }
-
-export function einkSnapshotHash(snapshot: EinkSnapshot): string {
-  const normalized = {
-    ...snapshot,
-    quotaRemainingPercent: round(snapshot.quotaRemainingPercent),
-    latestCompleteCredits: round(snapshot.latestCompleteCredits),
-    sevenDayCredits: round(snapshot.sevenDayCredits),
-    thirtyDayCredits: round(snapshot.thirtyDayCredits),
-    sevenDayDeltaPercent: round(snapshot.sevenDayDeltaPercent),
-  };
-  return JSON.stringify(normalized);
-}
-
-function round(value: number | null): number | null {
-  if (value === null || value === undefined) return null;
-  return Math.round(value * 1000) / 1000;
-}

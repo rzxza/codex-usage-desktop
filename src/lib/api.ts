@@ -140,13 +140,6 @@ export type CodexLimitsResponse = {
   subscriptionWillRenew?: boolean | null;
 };
 
-export type CodexResetSignalWindow = {
-  label?: string | null;
-  startsAt?: string | null;
-  endsAt?: string | null;
-  confidence?: number | null;
-};
-
 export type CodexResetSignalResponse = {
   status: "completed" | "scheduled" | "likely" | "none" | "unavailable";
   kind?: string | null;

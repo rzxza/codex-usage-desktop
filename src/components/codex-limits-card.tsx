@@ -178,6 +178,11 @@ function ResetArea({
                 })}
               </span>
             ) : null}
+            {resetSignal.stale ? (
+              <span className="mt-1 block text-[9px] font-medium leading-none text-warning">
+                {t("limits.reset_signal_stale")}
+              </span>
+            ) : null}
             <span className="mt-1 block text-[9px] leading-none text-muted-foreground/70">
               {t("limits.reset_signal_non_official")}
             </span>

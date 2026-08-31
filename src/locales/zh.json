@@ -163,6 +163,7 @@
     "reset_signal_effective_at": "预计 {{time}}",
     "reset_signal_confidence": "信号可信度 {{percent}}%",
     "reset_signal_non_official": "非官方监测",
+    "reset_signal_stale": "数据暂不可刷新（数据延迟）",
     "reset_signal_open": "打开 Codex 重置信号来源"
   },
   "daily": {

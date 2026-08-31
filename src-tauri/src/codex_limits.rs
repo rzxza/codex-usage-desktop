@@ -304,18 +304,20 @@ fn select_reset_signal(
             completed_events.push((event, time));
         }
     }
-    if !completed_events.is_empty() {
+    let latest_completed = if !completed_events.is_empty() {
         completed_events.sort_by(|(_, t_a), (_, t_b)| match (t_a, t_b) {
             (Some(a), Some(b)) => b.cmp(a),
             (Some(_), None) => std::cmp::Ordering::Less,
             (None, Some(_)) => std::cmp::Ordering::Greater,
             (None, None) => std::cmp::Ordering::Equal,
         });
-        return ("completed".to_string(), Some(completed_events[0].0));
-    }
+        Some(completed_events[0])
+    } else {
+        None
+    };
 
-    // 3. If no scheduled and no completed:
-    // Find likely / preview / reset_likely with confidence >= 0.8
+    // 3. Find latest valid likely:
+    // likely / preview / reset_likely with confidence >= 0.8
     // Must not be expired (> 48h since announcedAt).
     let mut likely_events: Vec<(&CodexRunwayEvent, Option<DateTime<Utc>>)> = Vec::new();
     for event in events {
@@ -338,11 +340,17 @@ fn select_reset_signal(
                 false
             };
             if !is_expired {
-                likely_events.push((event, ann_dt));
+                let time = ann_dt.or_else(|| {
+                    event
+                        .effective_at
+                        .as_deref()
+                        .and_then(parse_rfc3339_or_fallback)
+                });
+                likely_events.push((event, time));
             }
         }
     }
-    if !likely_events.is_empty() {
+    let latest_likely = if !likely_events.is_empty() {
         likely_events.sort_by(|(e_a, t_a), (e_b, t_b)| match (t_a, t_b) {
             (Some(a), Some(b)) => b.cmp(a),
             (Some(_), None) => std::cmp::Ordering::Less,
@@ -353,10 +361,31 @@ fn select_reset_signal(
                 conf_b.partial_cmp(&conf_a).unwrap_or(std::cmp::Ordering::Equal)
             }
         });
-        return ("likely".to_string(), Some(likely_events[0].0));
-    }
+        Some(likely_events[0])
+    } else {
+        None
+    };
 
-    ("none".to_string(), None)
+    // 4. Compare latestCompleted vs latestValidLikely: newer event wins.
+    match (latest_completed, latest_likely) {
+        (Some((c_event, c_time)), Some((l_event, l_time))) => {
+            match (c_time, l_time) {
+                (Some(c_dt), Some(l_dt)) => {
+                    if l_dt > c_dt {
+                        ("likely".to_string(), Some(l_event))
+                    } else {
+                        ("completed".to_string(), Some(c_event))
+                    }
+                }
+                (Some(_), None) => ("completed".to_string(), Some(c_event)),
+                (None, Some(_)) => ("likely".to_string(), Some(l_event)),
+                (None, None) => ("completed".to_string(), Some(c_event)),
+            }
+        }
+        (Some((c_event, _)), None) => ("completed".to_string(), Some(c_event)),
+        (None, Some((l_event, _))) => ("likely".to_string(), Some(l_event)),
+        (None, None) => ("none".to_string(), None),
+    }
 }
 
 fn is_stale_at(
@@ -2391,6 +2420,79 @@ mod tests {
             .with_timezone(&Utc);
         let stale_res = parse_codex_reset_signal_at(json, stale_now).unwrap();
         assert!(stale_res.stale);
+    }
+
+    #[test]
+    fn old_completed_plus_new_likely_returns_likely() {
+        let now = DateTime::parse_from_rfc3339("2026-08-31T10:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let json = r#"{
+            "events": [
+                {
+                    "kind": "reset_completed",
+                    "effectiveAt": "2026-08-25T08:00:00Z"
+                },
+                {
+                    "kind": "preview",
+                    "confidence": 0.85,
+                    "announcedAt": "2026-08-30T10:00:00Z"
+                }
+            ]
+        }"#;
+        let res = parse_codex_reset_signal_at(json, now).unwrap();
+        assert_eq!(res.status, "likely");
+        assert_eq!(res.kind.as_deref(), Some("preview"));
+    }
+
+    #[test]
+    fn new_completed_overrides_old_likely() {
+        let now = DateTime::parse_from_rfc3339("2026-08-31T10:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let json = r#"{
+            "events": [
+                {
+                    "kind": "preview",
+                    "confidence": 0.88,
+                    "announcedAt": "2026-08-29T10:00:00Z"
+                },
+                {
+                    "kind": "reset_completed",
+                    "effectiveAt": "2026-08-30T12:00:00Z"
+                }
+            ]
+        }"#;
+        let res = parse_codex_reset_signal_at(json, now).unwrap();
+        assert_eq!(res.status, "completed");
+        assert_eq!(res.kind.as_deref(), Some("reset_completed"));
+    }
+
+    #[test]
+    fn future_scheduled_overrides_both() {
+        let now = DateTime::parse_from_rfc3339("2026-08-31T10:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let json = r#"{
+            "events": [
+                {
+                    "kind": "reset_completed",
+                    "effectiveAt": "2026-08-25T08:00:00Z"
+                },
+                {
+                    "kind": "preview",
+                    "confidence": 0.88,
+                    "announcedAt": "2026-08-30T10:00:00Z"
+                },
+                {
+                    "kind": "reset_scheduled",
+                    "effectiveAt": "2026-09-01T14:00:00Z"
+                }
+            ]
+        }"#;
+        let res = parse_codex_reset_signal_at(json, now).unwrap();
+        assert_eq!(res.status, "scheduled");
+        assert_eq!(res.kind.as_deref(), Some("reset_scheduled"));
     }
 
     #[test]

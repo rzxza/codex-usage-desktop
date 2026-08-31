@@ -163,6 +163,7 @@
     "reset_signal_effective_at": "Estimated {{time}}",
     "reset_signal_confidence": "Signal confidence {{percent}}%",
     "reset_signal_non_official": "Non-official monitor",
+    "reset_signal_stale": "Signal delayed (stale)",
     "reset_signal_open": "Open Codex reset signal source"
   },
   "daily": {

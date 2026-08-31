@@ -134,6 +134,7 @@ export function useUsageDashboard() {
   const [codexLimits, setCodexLimits] = useState<CodexLimitsResponse | null>(null);
   const [codexLimitsError, setCodexLimitsError] = useState<string | null>(null);
   const [codexResetSignal, setCodexResetSignal] = useState<CodexResetSignalResponse | null>(null);
+  const [codexResetSignalError, setCodexResetSignalError] = useState<string | null>(null);
   const [serverAnalytics, setServerAnalytics] = useState<ServerCreditAnalyticsResponse | null>(null);
   const [serverAnalyticsError, setServerAnalyticsError] = useState<string | null>(null);
   const [isServerAnalyticsLoading, setIsServerAnalyticsLoading] = useState(false);
@@ -299,8 +300,10 @@ export function useUsageDashboard() {
     try {
       const data = await fetchCodexResetSignal();
       setCodexResetSignal(data);
-    } catch (_) {
-      setCodexResetSignal(null);
+      setCodexResetSignalError(null);
+    } catch (err) {
+      setCodexResetSignalError(errorMessage(err, "Failed to load reset signal."));
+      setCodexResetSignal((prev) => (prev ? { ...prev, stale: true } : null));
     }
   });
   const loadServerCreditAnalytics = useEffectEvent(async (forceRefresh = false) => {
@@ -999,6 +1002,7 @@ export function useUsageDashboard() {
     codexLimits,
     codexLimitsError,
     codexResetSignal,
+    codexResetSignalError,
     serverAnalytics,
     serverAnalyticsError,
     isServerAnalyticsLoading,
