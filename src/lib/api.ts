@@ -155,7 +155,7 @@ export type CodexResetSignalResponse = {
   effectiveAt?: string | null;
   fetchedAt: string;
   plans: string[];
-  windows: CodexResetSignalWindow[];
+  windows: string[];
   sourceUrl: string;
   rationale?: string | null;
   text?: string | null;

@@ -262,7 +262,7 @@ pub struct CodexResetSignalResponse {
     pub effective_at: Option<String>,
     pub fetched_at: String,
     pub plans: Vec<String>,
-    pub windows: Vec<CodexResetSignalWindow>,
+    pub windows: Vec<String>,
     pub source_url: String,
     pub rationale: Option<String>,
     pub text: Option<String>,

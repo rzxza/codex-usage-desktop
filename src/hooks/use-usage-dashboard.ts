@@ -55,7 +55,7 @@ const AUTO_RESCAN_MS = 5 * 60_000;
 const UPDATES_ENABLED = false;
 const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60_000;
 const UPDATE_CHECK_RETRY_MS = 60 * 60_000;
-const CODEX_RUNWAY_STATUS_URL = "https://codexrunway.app/status";
+const CODEX_RUNWAY_STATUS_URL = "https://www.codexrunway.com/status";
 const CHATGPT_USAGE_URL = "https://chatgpt.com/#settings/Usage";
 
 function formatCompactResetCountdown(resetsAt: string | null): string | null {

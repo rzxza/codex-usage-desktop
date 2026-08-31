@@ -12,6 +12,7 @@ export default defineConfig({
   test: {
     setupFiles: ["./src/test/setup.ts"],
     testTimeout: 15000,
+    fileParallelism: false,
     coverage: {
       reporter: ["text", "html"],
     },

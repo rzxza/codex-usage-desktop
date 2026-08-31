@@ -1,11 +1,8 @@
 use crate::{
     codex_environment::{selected_codex_environment, CodexEnvironment, CodexRuntime},
-    types::{
-        CodexLimitWindow, CodexLimitsResponse, CodexResetCredit, CodexResetSignalResponse,
-        CodexResetSignalWindow,
-    },
+    types::{CodexLimitWindow, CodexLimitsResponse, CodexResetCredit, CodexResetSignalResponse},
 };
-use chrono::{Local, SecondsFormat, TimeZone, Utc};
+use chrono::{DateTime, Local, SecondsFormat, TimeZone, Utc};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::{
@@ -28,7 +25,7 @@ const CODEX_RESET_CREDITS_URL: &str =
     "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits";
 const CHATGPT_ACCOUNT_CHECK_URL: &str =
     "https://chatgpt.com/backend-api/accounts/check/v4-2023-04-27";
-const CODEX_RUNWAY_STATUS_URL: &str = "https://codexrunway.app/api/status.json";
+const CODEX_RUNWAY_STATUS_URL: &str = "https://www.codexrunway.com/api/status.json";
 const RESET_CREDITS_CACHE_TTL: Duration = Duration::from_secs(5 * 60);
 
 #[derive(Debug, Clone, PartialEq)]
@@ -145,19 +142,11 @@ static RESET_CREDITS_CACHE: OnceLock<ResetCreditsCache> = OnceLock::new();
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct CodexRunwayStatusResponse {
-    status: Option<String>,
-    fetched_at: Option<String>,
     generated_at: Option<String>,
+    last_successful_check_at: Option<String>,
     monitor: Option<CodexRunwayMonitorStatus>,
     #[serde(default)]
     events: Vec<CodexRunwayEvent>,
-    #[serde(default)]
-    plans: Vec<serde_json::Value>,
-    #[serde(default)]
-    windows: Vec<CodexRunwayWindow>,
-    source_url: Option<String>,
-    rationale: Option<String>,
-    text: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -173,18 +162,25 @@ struct CodexRunwayEvent {
     confidence: Option<f64>,
     announced_at: Option<String>,
     effective_at: Option<String>,
-    source_url: Option<String>,
+    scope: Option<CodexRunwayScope>,
+    source: Option<CodexRunwaySource>,
     rationale: Option<String>,
     text: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
-struct CodexRunwayWindow {
-    label: Option<String>,
-    starts_at: Option<String>,
-    ends_at: Option<String>,
-    confidence: Option<f64>,
+struct CodexRunwayScope {
+    #[serde(default)]
+    plans: Vec<String>,
+    #[serde(default)]
+    windows: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct CodexRunwaySource {
+    url: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -246,58 +242,146 @@ pub fn fetch_codex_reset_signal() -> Result<CodexResetSignalResponse, String> {
     parse_codex_reset_signal(&body)
 }
 
-fn plan_text(value: &serde_json::Value) -> String {
-    if let Some(text) = value.as_str() {
-        return text.to_string();
+fn parse_rfc3339_or_fallback(s: &str) -> Option<DateTime<Utc>> {
+    if let Ok(dt) = DateTime::parse_from_rfc3339(s) {
+        return Some(dt.with_timezone(&Utc));
     }
-    if let Some(obj) = value.as_object() {
-        for key in ["text", "title", "label", "name"] {
-            if let Some(text) = obj.get(key).and_then(serde_json::Value::as_str) {
-                return text.to_string();
+    if let Ok(naive) = chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S%.fZ") {
+        return Some(DateTime::<Utc>::from_naive_utc_and_offset(naive, Utc));
+    }
+    if let Ok(naive) = chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%SZ") {
+        return Some(DateTime::<Utc>::from_naive_utc_and_offset(naive, Utc));
+    }
+    None
+}
+
+fn select_reset_signal(
+    events: &[CodexRunwayEvent],
+    now: DateTime<Utc>,
+) -> (String, Option<&CodexRunwayEvent>) {
+    // 1. Future scheduled:
+    // kind = reset_scheduled / scheduled, effectiveAt > now
+    // Choose the future scheduled closest to now.
+    let mut future_scheduled: Vec<(&CodexRunwayEvent, DateTime<Utc>)> = Vec::new();
+    for event in events {
+        if matches!(
+            event.kind.as_deref(),
+            Some("reset_scheduled" | "scheduled")
+        ) {
+            if let Some(eff_str) = event.effective_at.as_deref() {
+                if let Some(eff_dt) = parse_rfc3339_or_fallback(eff_str) {
+                    if eff_dt > now {
+                        future_scheduled.push((event, eff_dt));
+                    }
+                }
             }
         }
     }
-    String::new()
-}
+    if !future_scheduled.is_empty() {
+        future_scheduled.sort_by_key(|(_, dt)| *dt);
+        return ("scheduled".to_string(), Some(future_scheduled[0].0));
+    }
 
-fn signal_from_events(events: &[CodexRunwayEvent]) -> (String, Option<&CodexRunwayEvent>) {
-    // A future scheduled event is more actionable than an older completed one.
-    for priority_kind in ["reset_scheduled", "scheduled"] {
-        if let Some(event) = events.iter().find(|e| e.kind.as_deref() == Some(priority_kind)) {
-            return ("scheduled".to_string(), Some(event));
+    // 2. If no future scheduled:
+    // Find latest relevant completed: reset_completed / completed
+    // Use effectiveAt, fallback to announcedAt. Latest in time.
+    let mut completed_events: Vec<(&CodexRunwayEvent, Option<DateTime<Utc>>)> = Vec::new();
+    for event in events {
+        if matches!(
+            event.kind.as_deref(),
+            Some("reset_completed" | "completed")
+        ) {
+            let time = event
+                .effective_at
+                .as_deref()
+                .and_then(parse_rfc3339_or_fallback)
+                .or_else(|| {
+                    event
+                        .announced_at
+                        .as_deref()
+                        .and_then(parse_rfc3339_or_fallback)
+                });
+            completed_events.push((event, time));
         }
     }
-    for priority_kind in ["reset_completed", "completed"] {
-        if let Some(event) = events.iter().find(|e| e.kind.as_deref() == Some(priority_kind)) {
-            return ("completed".to_string(), Some(event));
-        }
+    if !completed_events.is_empty() {
+        completed_events.sort_by(|(_, t_a), (_, t_b)| match (t_a, t_b) {
+            (Some(a), Some(b)) => b.cmp(a),
+            (Some(_), None) => std::cmp::Ordering::Less,
+            (None, Some(_)) => std::cmp::Ordering::Greater,
+            (None, None) => std::cmp::Ordering::Equal,
+        });
+        return ("completed".to_string(), Some(completed_events[0].0));
     }
-    for event in events.iter() {
+
+    // 3. If no scheduled and no completed:
+    // Find likely / preview / reset_likely with confidence >= 0.8
+    // Must not be expired (> 48h since announcedAt).
+    let mut likely_events: Vec<(&CodexRunwayEvent, Option<DateTime<Utc>>)> = Vec::new();
+    for event in events {
         if matches!(
             event.kind.as_deref(),
             Some("likely" | "preview" | "reset_likely")
         ) && event.confidence.unwrap_or(0.0) >= 0.8
         {
-            return ("likely".to_string(), Some(event));
+            let ann_dt = event
+                .announced_at
+                .as_deref()
+                .and_then(parse_rfc3339_or_fallback);
+            let is_expired = if let Some(dt) = ann_dt {
+                now.signed_duration_since(dt).num_hours() > 48
+            } else if let Some(eff_dt) =
+                event.effective_at.as_deref().and_then(parse_rfc3339_or_fallback)
+            {
+                eff_dt < now
+            } else {
+                false
+            };
+            if !is_expired {
+                likely_events.push((event, ann_dt));
+            }
         }
     }
+    if !likely_events.is_empty() {
+        likely_events.sort_by(|(e_a, t_a), (e_b, t_b)| match (t_a, t_b) {
+            (Some(a), Some(b)) => b.cmp(a),
+            (Some(_), None) => std::cmp::Ordering::Less,
+            (None, Some(_)) => std::cmp::Ordering::Greater,
+            (None, None) => {
+                let conf_a = e_a.confidence.unwrap_or(0.0);
+                let conf_b = e_b.confidence.unwrap_or(0.0);
+                conf_b.partial_cmp(&conf_a).unwrap_or(std::cmp::Ordering::Equal)
+            }
+        });
+        return ("likely".to_string(), Some(likely_events[0].0));
+    }
+
     ("none".to_string(), None)
 }
 
-fn is_stale_generated_at(generated_at: Option<&str>) -> bool {
-    let Some(raw) = generated_at else {
-        return false;
-    };
-    match chrono::DateTime::parse_from_rfc3339(raw) {
-        Ok(dt) => {
-            let age = Utc::now().signed_duration_since(dt.with_timezone(&Utc));
-            age.num_hours() > 24
+fn is_stale_at(
+    generated_at: Option<&str>,
+    last_successful_check_at: Option<&str>,
+    now: DateTime<Utc>,
+) -> bool {
+    match (
+        generated_at.and_then(parse_rfc3339_or_fallback),
+        last_successful_check_at.and_then(parse_rfc3339_or_fallback),
+    ) {
+        (Some(gen_dt), Some(check_dt)) => {
+            now.signed_duration_since(gen_dt).num_hours() > 24
+                || now.signed_duration_since(check_dt).num_hours() > 24
         }
-        Err(_) => false,
+        (Some(gen_dt), None) => now.signed_duration_since(gen_dt).num_hours() > 24,
+        (None, Some(check_dt)) => now.signed_duration_since(check_dt).num_hours() > 24,
+        (None, None) => false,
     }
 }
 
-fn parse_codex_reset_signal(body: &str) -> Result<CodexResetSignalResponse, String> {
+pub(crate) fn parse_codex_reset_signal_at(
+    body: &str,
+    now: DateTime<Utc>,
+) -> Result<CodexResetSignalResponse, String> {
     let response: CodexRunwayStatusResponse = serde_json::from_str(body)
         .map_err(|error| format!("Failed to parse reset signal JSON: {error}"))?;
 
@@ -308,33 +392,42 @@ fn parse_codex_reset_signal(body: &str) -> Result<CodexResetSignalResponse, Stri
         .map(|status| status == "ok")
         .unwrap_or(true);
 
-    let (status, event) = signal_from_events(&response.events);
+    let (event_status, event) = select_reset_signal(&response.events, now);
     let status = if !monitor_ok {
         "unavailable".to_string()
-    } else if response.status.as_deref() == Some("error") {
-        "unavailable".to_string()
     } else {
-        status
+        event_status
     };
 
-    let stale = is_stale_generated_at(response.generated_at.as_deref());
+    let stale = is_stale_at(
+        response.generated_at.as_deref(),
+        response.last_successful_check_at.as_deref(),
+        now,
+    );
+
     let fetched_at = response
-        .fetched_at
+        .last_successful_check_at
         .clone()
-        .unwrap_or_else(|| Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true));
-    let source_url = response
-        .source_url
-        .clone()
-        .or_else(|| event.and_then(|e| e.source_url.clone()))
+        .or_else(|| response.generated_at.clone())
+        .unwrap_or_else(|| now.to_rfc3339_opts(SecondsFormat::Millis, true));
+
+    let source_url = event
+        .and_then(|e| e.source.as_ref())
+        .and_then(|s| s.url.clone())
         .unwrap_or_else(|| CODEX_RUNWAY_STATUS_URL.to_string());
-    let rationale = response
-        .rationale
-        .clone()
-        .or_else(|| event.and_then(|e| e.rationale.clone()));
-    let text = response
-        .text
-        .clone()
-        .or_else(|| event.and_then(|e| e.text.clone()));
+
+    let plans = event
+        .and_then(|e| e.scope.as_ref())
+        .map(|s| s.plans.clone())
+        .unwrap_or_default();
+
+    let windows = event
+        .and_then(|e| e.scope.as_ref())
+        .map(|s| s.windows.clone())
+        .unwrap_or_default();
+
+    let rationale = event.and_then(|e| e.rationale.clone());
+    let text = event.and_then(|e| e.text.clone());
 
     Ok(CodexResetSignalResponse {
         status,
@@ -343,22 +436,17 @@ fn parse_codex_reset_signal(body: &str) -> Result<CodexResetSignalResponse, Stri
         announced_at: event.and_then(|e| e.announced_at.clone()),
         effective_at: event.and_then(|e| e.effective_at.clone()),
         fetched_at,
-        plans: response.plans.iter().map(plan_text).filter(|s| !s.is_empty()).collect(),
-        windows: response
-            .windows
-            .into_iter()
-            .map(|window| CodexResetSignalWindow {
-                label: window.label,
-                starts_at: window.starts_at,
-                ends_at: window.ends_at,
-                confidence: window.confidence,
-            })
-            .collect(),
+        plans,
+        windows,
         source_url,
         rationale,
         text,
         stale,
     })
+}
+
+pub(crate) fn parse_codex_reset_signal(body: &str) -> Result<CodexResetSignalResponse, String> {
+    parse_codex_reset_signal_at(body, Utc::now())
 }
 
 fn fetch_codex_limits_with(
@@ -2033,141 +2121,276 @@ mod tests {
     }
 
     #[test]
-    fn parses_reset_completed_signal() {
-        let response = parse_codex_reset_signal(
-            r#"{
-                "status": "ok",
-                "fetchedAt": "2026-08-30T09:00:00Z",
-                "generatedAt": "2026-08-30T08:59:00Z",
-                "events": [{
+    fn future_scheduled_wins() {
+        let now = DateTime::parse_from_rfc3339("2026-08-31T10:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let json = r#"{
+            "generatedAt": "2026-08-31T09:00:00Z",
+            "lastSuccessfulCheckAt": "2026-08-31T09:55:00Z",
+            "monitor": { "status": "ok" },
+            "events": [
+                {
+                    "kind": "reset_scheduled",
+                    "effectiveAt": "2026-09-01T14:30:00Z",
+                    "confidence": 0.95
+                }
+            ]
+        }"#;
+        let res = parse_codex_reset_signal_at(json, now).unwrap();
+        assert_eq!(res.status, "scheduled");
+        assert_eq!(res.effective_at.as_deref(), Some("2026-09-01T14:30:00Z"));
+    }
+
+    #[test]
+    fn past_scheduled_does_not_override_completed() {
+        let now = DateTime::parse_from_rfc3339("2026-08-31T10:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let json = r#"{
+            "generatedAt": "2026-08-31T09:00:00Z",
+            "events": [
+                {
+                    "kind": "reset_scheduled",
+                    "effectiveAt": "2026-08-30T14:00:00Z",
+                    "confidence": 0.90
+                },
+                {
                     "kind": "reset_completed",
-                    "confidence": 0.99,
-                    "effectiveAt": "2026-08-30T08:35:00Z",
-                    "text": "Codex weekly reset completed"
-                }],
-                "sourceUrl": "https://codexrunway.app/status",
-                "rationale": "observed reset"
-            }"#,
-        )
-        .unwrap();
-        assert_eq!(response.status, "completed");
-        assert_eq!(response.kind.as_deref(), Some("reset_completed"));
-        assert_eq!(response.confidence, Some(0.99));
-        assert_eq!(response.effective_at.as_deref(), Some("2026-08-30T08:35:00Z"));
-        assert!(!response.stale);
+                    "effectiveAt": "2026-08-30T14:35:00Z",
+                    "confidence": 0.99
+                }
+            ]
+        }"#;
+        let res = parse_codex_reset_signal_at(json, now).unwrap();
+        assert_eq!(res.status, "completed");
+        assert_eq!(res.kind.as_deref(), Some("reset_completed"));
+        assert_eq!(res.effective_at.as_deref(), Some("2026-08-30T14:35:00Z"));
     }
 
     #[test]
-    fn parses_reset_scheduled_signal() {
-        let response = parse_codex_reset_signal(
-            r#"{
-                "status": "ok",
-                "generatedAt": "2026-08-30T10:00:00Z",
-                "events": [
-                    {"kind": "reset_completed", "effectiveAt": "2026-08-23T08:35:00Z", "confidence": 0.9},
-                    {"kind": "reset_scheduled", "confidence": 0.96, "effectiveAt": "2026-08-30T14:30:00Z"}
-                ],
-                "plans": [{"text": "Reset window 14:00-15:00"}]
-            }"#,
-        )
-        .unwrap();
-        assert_eq!(response.status, "scheduled");
-        assert_eq!(response.kind.as_deref(), Some("reset_scheduled"));
-        assert_eq!(response.confidence, Some(0.96));
-        assert_eq!(response.effective_at.as_deref(), Some("2026-08-30T14:30:00Z"));
-        assert_eq!(response.plans, vec!["Reset window 14:00-15:00"]);
+    fn latest_completed_selected() {
+        let now = DateTime::parse_from_rfc3339("2026-08-31T10:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let json = r#"{
+            "generatedAt": "2026-08-31T09:00:00Z",
+            "events": [
+                {
+                    "kind": "reset_completed",
+                    "effectiveAt": "2026-08-23T08:00:00Z"
+                },
+                {
+                    "kind": "reset_completed",
+                    "effectiveAt": "2026-08-30T08:00:00Z"
+                }
+            ]
+        }"#;
+        let res = parse_codex_reset_signal_at(json, now).unwrap();
+        assert_eq!(res.status, "completed");
+        assert_eq!(res.effective_at.as_deref(), Some("2026-08-30T08:00:00Z"));
     }
 
     #[test]
-    fn parses_likely_high_confidence_signal() {
-        let response = parse_codex_reset_signal(
-            r#"{
-                "status": "ok",
-                "generatedAt": "2026-08-30T10:00:00Z",
-                "events": [
-                    {"kind": "preview", "confidence": 0.83, "announcedAt": "2026-08-30T09:00:00Z"}
-                ]
-            }"#,
-        )
-        .unwrap();
-        assert_eq!(response.status, "likely");
-        assert_eq!(response.kind.as_deref(), Some("preview"));
-        assert_eq!(response.confidence, Some(0.83));
+    fn future_scheduled_overrides_old_completed() {
+        let now = DateTime::parse_from_rfc3339("2026-08-31T10:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let json = r#"{
+            "generatedAt": "2026-08-31T09:00:00Z",
+            "events": [
+                {
+                    "kind": "reset_completed",
+                    "effectiveAt": "2026-08-30T08:00:00Z"
+                },
+                {
+                    "kind": "reset_scheduled",
+                    "effectiveAt": "2026-09-01T14:00:00Z"
+                }
+            ]
+        }"#;
+        let res = parse_codex_reset_signal_at(json, now).unwrap();
+        assert_eq!(res.status, "scheduled");
+        assert_eq!(res.effective_at.as_deref(), Some("2026-09-01T14:00:00Z"));
     }
 
     #[test]
-    fn parses_no_event_signal() {
-        let response = parse_codex_reset_signal(
-            r#"{
-                "status": "ok",
-                "generatedAt": "2026-08-30T10:00:00Z",
-                "events": []
-            }"#,
-        )
-        .unwrap();
-        assert_eq!(response.status, "none");
-        assert_eq!(response.kind, None);
+    fn likely_requires_high_confidence() {
+        let now = DateTime::parse_from_rfc3339("2026-08-31T10:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let low_conf = r#"{
+            "events": [
+                {
+                    "kind": "preview",
+                    "confidence": 0.75,
+                    "announcedAt": "2026-08-31T09:00:00Z"
+                }
+            ]
+        }"#;
+        let res_low = parse_codex_reset_signal_at(low_conf, now).unwrap();
+        assert_eq!(res_low.status, "none");
+
+        let high_conf = r#"{
+            "events": [
+                {
+                    "kind": "preview",
+                    "confidence": 0.85,
+                    "announcedAt": "2026-08-31T09:00:00Z"
+                }
+            ]
+        }"#;
+        let res_high = parse_codex_reset_signal_at(high_conf, now).unwrap();
+        assert_eq!(res_high.status, "likely");
+        assert_eq!(res_high.kind.as_deref(), Some("preview"));
+        assert_eq!(res_high.confidence, Some(0.85));
     }
 
     #[test]
-    fn malformed_reset_signal_is_error() {
-        assert!(parse_codex_reset_signal("{not json}").is_err());
+    fn old_likely_is_ignored() {
+        let now = DateTime::parse_from_rfc3339("2026-08-31T10:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let json = r#"{
+            "events": [
+                {
+                    "kind": "preview",
+                    "confidence": 0.95,
+                    "announcedAt": "2026-08-25T09:00:00Z"
+                }
+            ]
+        }"#;
+        let res = parse_codex_reset_signal_at(json, now).unwrap();
+        assert_eq!(res.status, "none");
     }
 
     #[test]
-    fn unknown_kind_is_ignored_safely() {
-        let response = parse_codex_reset_signal(
-            r#"{
-                "status": "ok",
-                "generatedAt": "2026-08-30T10:00:00Z",
-                "events": [{"kind": "mystery-event", "confidence": 0.9}]
-            }"#,
-        )
-        .unwrap();
-        assert_eq!(response.status, "none");
-        assert_eq!(response.kind, None);
+    fn no_event_returns_none() {
+        let now = DateTime::parse_from_rfc3339("2026-08-31T10:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let json = r#"{ "events": [] }"#;
+        let res = parse_codex_reset_signal_at(json, now).unwrap();
+        assert_eq!(res.status, "none");
+        assert_eq!(res.kind, None);
     }
 
     #[test]
-    fn monitor_not_ok_becomes_unavailable() {
-        let response = parse_codex_reset_signal(
-            r#"{
-                "status": "ok",
-                "monitor": {"status": "degraded"},
-                "generatedAt": "2026-08-30T10:00:00Z",
-                "events": [{"kind": "reset_scheduled", "confidence": 0.9}]
-            }"#,
-        )
-        .unwrap();
-        assert_eq!(response.status, "unavailable");
+    fn monitor_not_ok_returns_unavailable() {
+        let now = DateTime::parse_from_rfc3339("2026-08-31T10:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let json = r#"{
+            "monitor": { "status": "degraded" },
+            "events": [
+                {
+                    "kind": "reset_scheduled",
+                    "effectiveAt": "2026-09-01T14:30:00Z",
+                    "source": { "url": "https://www.codexrunway.com/details" }
+                }
+            ]
+        }"#;
+        let res = parse_codex_reset_signal_at(json, now).unwrap();
+        assert_eq!(res.status, "unavailable");
+        assert_eq!(res.kind.as_deref(), Some("reset_scheduled"));
+        assert_eq!(res.source_url, "https://www.codexrunway.com/details");
     }
 
     #[test]
-    fn stale_generated_at_is_marked() {
-        let response = parse_codex_reset_signal(
-            r#"{
-                "status": "ok",
-                "generatedAt": "2020-01-01T00:00:00Z",
-                "events": [{"kind": "reset_completed", "confidence": 0.9}]
-            }"#,
-        )
-        .unwrap();
-        assert_eq!(response.status, "completed");
-        assert!(response.stale);
+    fn malformed_json_is_error() {
+        let now = DateTime::parse_from_rfc3339("2026-08-31T10:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        assert!(parse_codex_reset_signal_at("{not json}", now).is_err());
     }
 
     #[test]
-    fn missing_confidence_does_not_claim_likely() {
-        let response = parse_codex_reset_signal(
-            r#"{
-                "status": "ok",
-                "generatedAt": "2026-08-30T10:00:00Z",
-                "events": [{"kind": "preview"}]
-            }"#,
-        )
-        .unwrap();
-        assert_eq!(response.status, "none");
-        assert_eq!(response.confidence, None);
+    fn unknown_kind_is_ignored() {
+        let now = DateTime::parse_from_rfc3339("2026-08-31T10:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let json = r#"{
+            "events": [
+                { "kind": "unrecognized_future_kind", "confidence": 0.99 }
+            ]
+        }"#;
+        let res = parse_codex_reset_signal_at(json, now).unwrap();
+        assert_eq!(res.status, "none");
+    }
+
+    #[test]
+    fn scope_plans_and_windows_are_parsed() {
+        let now = DateTime::parse_from_rfc3339("2026-08-31T10:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let json = r#"{
+            "events": [
+                {
+                    "kind": "reset_scheduled",
+                    "effectiveAt": "2026-09-01T14:30:00Z",
+                    "scope": {
+                        "plans": ["all", "pro"],
+                        "windows": ["weekly"]
+                    }
+                }
+            ]
+        }"#;
+        let res = parse_codex_reset_signal_at(json, now).unwrap();
+        assert_eq!(res.plans, vec!["all", "pro"]);
+        assert_eq!(res.windows, vec!["weekly"]);
+    }
+
+    #[test]
+    fn nested_source_url_is_parsed() {
+        let now = DateTime::parse_from_rfc3339("2026-08-31T10:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let json = r#"{
+            "events": [
+                {
+                    "kind": "reset_scheduled",
+                    "effectiveAt": "2026-09-01T14:30:00Z",
+                    "source": {
+                        "url": "https://www.codexrunway.com/events/123"
+                    }
+                }
+            ]
+        }"#;
+        let res = parse_codex_reset_signal_at(json, now).unwrap();
+        assert_eq!(res.source_url, "https://www.codexrunway.com/events/123");
+    }
+
+    #[test]
+    fn last_successful_check_at_is_used() {
+        let now = DateTime::parse_from_rfc3339("2026-08-31T10:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let json = r#"{
+            "generatedAt": "2026-08-31T08:00:00Z",
+            "lastSuccessfulCheckAt": "2026-08-31T09:59:00Z",
+            "events": []
+        }"#;
+        let res = parse_codex_reset_signal_at(json, now).unwrap();
+        assert_eq!(res.fetched_at, "2026-08-31T09:59:00Z");
+    }
+
+    #[test]
+    fn stale_uses_injected_now() {
+        let json = r#"{
+            "generatedAt": "2026-08-30T00:00:00Z",
+            "events": []
+        }"#;
+        let fresh_now = DateTime::parse_from_rfc3339("2026-08-30T12:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let fresh_res = parse_codex_reset_signal_at(json, fresh_now).unwrap();
+        assert!(!fresh_res.stale);
+
+        let stale_now = DateTime::parse_from_rfc3339("2026-08-31T02:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let stale_res = parse_codex_reset_signal_at(json, stale_now).unwrap();
+        assert!(stale_res.stale);
     }
 
     #[test]

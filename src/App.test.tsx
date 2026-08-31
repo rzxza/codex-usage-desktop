@@ -434,7 +434,7 @@ describe("App", () => {
       fetchedAt: "2026-08-30T10:00:00Z",
       plans: [],
       windows: [],
-      sourceUrl: "https://codexrunway.app/status",
+      sourceUrl: "https://www.codexrunway.com/status",
       rationale: null,
       text: null,
       stale: false,
@@ -463,7 +463,7 @@ describe("App", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: "Open Codex reset signal source" }));
 
-    expect(invokeMock).toHaveBeenCalledWith("open_url", { url: "https://codexrunway.app/status" });
+    expect(invokeMock).toHaveBeenCalledWith("open_url", { url: "https://www.codexrunway.com/status" });
   });
 
   it("opens ChatGPT Usage when reset credits are clicked", async () => {
