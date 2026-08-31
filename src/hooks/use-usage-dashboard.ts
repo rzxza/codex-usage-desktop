@@ -52,6 +52,7 @@ function isNewerVersion(current: string, target: string): boolean {
 }
 
 const AUTO_RESCAN_MS = 5 * 60_000;
+const RESET_SIGNAL_REFRESH_MS = 15 * 60_000;
 const UPDATES_ENABLED = false;
 const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60_000;
 const UPDATE_CHECK_RETRY_MS = 60 * 60_000;
@@ -213,6 +214,16 @@ export function useUsageDashboard() {
   }, [bootstrapped]);
 
   useEffect(() => {
+    if (!bootstrapped) return;
+
+    const timer = window.setInterval(() => {
+      void loadCodexResetSignal();
+    }, RESET_SIGNAL_REFRESH_MS);
+
+    return () => window.clearInterval(timer);
+  }, [bootstrapped]);
+
+  useEffect(() => {
     let isMounted = true;
     let unlisten: (() => void) | null = null;
 
@@ -257,6 +268,8 @@ export function useUsageDashboard() {
   const hasBootstrappedRef = useRef(false);
   const lastLimitsFetchTimeRef = useRef<number>(0);
   const lastAutoScanTimeRef = useRef<number>(0);
+  const lastResetSignalFetchAtRef = useRef<number | null>(null);
+  const resetSignalInFlightRef = useRef<Promise<void> | null>(null);
   const scanInFlightRef = useRef<Promise<void> | null>(null);
   const updateCheckInFlightRef = useRef<Promise<void> | null>(null);
 
@@ -296,15 +309,33 @@ export function useUsageDashboard() {
     }
   });
 
-  const loadCodexResetSignal = useEffectEvent(async () => {
-    try {
-      const data = await fetchCodexResetSignal();
-      setCodexResetSignal(data);
-      setCodexResetSignalError(null);
-    } catch (err) {
-      setCodexResetSignalError(errorMessage(err, "Failed to load reset signal."));
-      setCodexResetSignal((prev) => (prev ? { ...prev, stale: true } : null));
+  const loadCodexResetSignal = useEffectEvent(async ({ force = false }: { force?: boolean } = {}) => {
+    const now = Date.now();
+    const lastFetchAt = lastResetSignalFetchAtRef.current;
+    if (!force && lastFetchAt !== null && now - lastFetchAt < RESET_SIGNAL_REFRESH_MS) {
+      return;
     }
+    if (resetSignalInFlightRef.current) {
+      await resetSignalInFlightRef.current;
+      return;
+    }
+
+    const promise = (async () => {
+      try {
+        const data = await fetchCodexResetSignal();
+        setCodexResetSignal(data);
+        setCodexResetSignalError(null);
+      } catch (err) {
+        setCodexResetSignalError(errorMessage(err, "Failed to load reset signal."));
+        setCodexResetSignal((prev) => (prev ? { ...prev, stale: true } : null));
+      } finally {
+        lastResetSignalFetchAtRef.current = Date.now();
+        resetSignalInFlightRef.current = null;
+      }
+    })();
+
+    resetSignalInFlightRef.current = promise;
+    await promise;
   });
   const loadServerCreditAnalytics = useEffectEvent(async (forceRefresh = false) => {
     setIsServerAnalyticsLoading(true);
@@ -782,6 +813,7 @@ export function useUsageDashboard() {
   }, [
     bootstrapped,
     codexLimits,
+    serverAnalytics,
     overview,
     trayTitleShow,
     trayMenuShow,
@@ -840,7 +872,7 @@ export function useUsageDashboard() {
 
     try {
       await scanAndReloadOverview(startedAt, { force: true });
-      await loadCodexResetSignal();
+      await loadCodexResetSignal({ force: true });
       await loadServerCreditAnalytics(true);
     } catch (refreshError) {
       setError(refreshError instanceof Error ? refreshError.message : "Refresh failed.");

@@ -230,8 +230,13 @@ describe("eink refresh policy and pixel deduplication", () => {
   });
 
   it("keeps final pixel hash unchanged when purely non-visible metadata changes", () => {
-    const a = sampleSnapshot({ quotaResetAt: "2026-08-30T14:30:00Z" });
-    const b = sampleSnapshot({ quotaResetAt: "2026-08-30T14:30:00Z" });
+    // status=scheduled does NOT render confidence, so changing confidence is a
+    // non-visible metadata change and must not alter the final pixel hash.
+    // Note: jsdom has no real Canvas 2D context, so this test exercises the
+    // deterministic fallback matrix. Real Canvas/font rasterization is verified
+    // by Windows native/manual validation.
+    const a = sampleSnapshot({ resetSignalStatus: "scheduled", resetSignalConfidence: 0.92 });
+    const b = sampleSnapshot({ resetSignalStatus: "scheduled", resetSignalConfidence: 0.88 });
     expect(hashEinkPixels(renderEinkMatrix(a))).toBe(hashEinkPixels(renderEinkMatrix(b)));
   });
 

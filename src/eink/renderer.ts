@@ -121,7 +121,9 @@ export function renderSkeleton(snapshot: EinkSnapshot): EinkPixelMatrix {
   // Reset Signal section
   fillRect(matrix, 16, 172, 368, 1, 1);
   const resetStatus = snapshot.resetSignalStatus;
-  if (resetStatus === "scheduled" || resetStatus === "likely") {
+  if (resetStatus === "scheduled") {
+    fillRect(matrix, 16, 190, 140, 14, 2);
+  } else if (resetStatus === "likely") {
     const confW = snapshot.resetSignalConfidence
       ? Math.round(snapshot.resetSignalConfidence * 40)
       : 0;
