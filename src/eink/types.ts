@@ -13,7 +13,12 @@ export type EinkSnapshot = {
   thirtyDayCredits: number | null;
   thirtyDayCoverage: { completeDays: number; expectedDays: number };
   sevenDayDeltaPercent: number | null;
+  sevenDaySeries: Array<{
+    date: string;
+    credits: number | null;
+  }>;
   resetSignalStatus: string | null;
+  resetSignalConfidence: number | null;
   resetSignalEffectiveAt: string | null;
   analyticsUpdatedAt: string | null;
 };

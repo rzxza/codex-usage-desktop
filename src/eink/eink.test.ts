@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { buildEinkSnapshot, einkSnapshotHash } from "./snapshot";
-import { EINK_HEIGHT, EINK_WIDTH, matrixHasColor, renderSkeleton } from "./renderer";
+import { buildEinkSnapshot, hashEinkPixels } from "./snapshot";
+import {
+  EINK_HEIGHT,
+  EINK_WIDTH,
+  matrixHasColor,
+  quantizeImageData,
+  renderEinkMatrix,
+  renderSkeleton,
+} from "./renderer";
 import { EINK_DEFAULT_MIN_INTERVAL_MS, shouldRefreshEink } from "./policy";
 import { ManualExportTransport, MockEinkTransport } from "./transport";
 import type { EinkSnapshot } from "./types";
@@ -17,7 +24,17 @@ function sampleSnapshot(overrides: Partial<EinkSnapshot> = {}): EinkSnapshot {
     thirtyDayCredits: 94900,
     thirtyDayCoverage: { completeDays: 30, expectedDays: 30 },
     sevenDayDeltaPercent: 35,
+    sevenDaySeries: [
+      { date: "2026-08-23", credits: 3000 },
+      { date: "2026-08-24", credits: 3200 },
+      { date: "2026-08-25", credits: null },
+      { date: "2026-08-26", credits: 2800 },
+      { date: "2026-08-27", credits: 3100 },
+      { date: "2026-08-28", credits: 3000 },
+      { date: "2026-08-29", credits: 3500 },
+    ],
     resetSignalStatus: "scheduled",
+    resetSignalConfidence: 0.92,
     resetSignalEffectiveAt: "2026-08-30T14:30:00Z",
     analyticsUpdatedAt: "2026-08-30T10:00:00Z",
     ...overrides,
@@ -53,9 +70,14 @@ describe("eink snapshot", () => {
         completeness: { completeDays: 30, expectedDays: 30, isComplete: true },
       },
       sevenDayDeltaPercent: 35,
+      sevenDaySeries: [
+        { date: "2026-08-23", credits: 3000 },
+        { date: "2026-08-24", credits: null },
+      ],
     } as any;
     const resetSignal = {
       status: "scheduled",
+      confidence: 0.92,
       effectiveAt: "2026-08-30T14:30:00Z",
     } as any;
 
@@ -66,7 +88,9 @@ describe("eink snapshot", () => {
     expect(snapshot.sevenDayCredits).toBe(20700);
     expect(snapshot.thirtyDayCredits).toBe(94900);
     expect(snapshot.sevenDayDeltaPercent).toBe(35);
+    expect(snapshot.sevenDaySeries).toHaveLength(2);
     expect(snapshot.resetSignalStatus).toBe("scheduled");
+    expect(snapshot.resetSignalConfidence).toBe(0.92);
   });
 
   it("uses known credits when a window is partial", () => {
@@ -95,15 +119,15 @@ describe("eink snapshot", () => {
   });
 });
 
-describe("eink renderer", () => {
+describe("eink renderer and palette", () => {
   it("renders exactly 400x300", () => {
-    const matrix = renderSkeleton(sampleSnapshot());
+    const matrix = renderEinkMatrix(sampleSnapshot());
     expect(matrix.length).toBe(EINK_HEIGHT);
     expect(matrix.every((row) => row.length === EINK_WIDTH)).toBe(true);
   });
 
   it("uses only black, white, and red pixels", () => {
-    const matrix = renderSkeleton(sampleSnapshot());
+    const matrix = renderEinkMatrix(sampleSnapshot());
     const allowed = new Set([0, 1, 2]);
     for (const row of matrix) {
       for (const pixel of row) {
@@ -113,37 +137,97 @@ describe("eink renderer", () => {
   });
 
   it("uses red for low quota", () => {
-    const matrix = renderSkeleton(sampleSnapshot({ quotaRemainingPercent: 10 }));
+    const matrix = renderEinkMatrix(sampleSnapshot({ quotaRemainingPercent: 10 }));
     expect(matrixHasColor(matrix, 2)).toBe(true);
+  });
+
+  it("uses red for incomplete window coverage warning", () => {
+    const matrix = renderEinkMatrix(
+      sampleSnapshot({
+        sevenDayCoverage: { completeDays: 5, expectedDays: 7 },
+      }),
+    );
+    expect(matrixHasColor(matrix, 2)).toBe(true);
+  });
+
+  it("quantizes arbitrary image buffer into strictly 3-color palette", () => {
+    const width = 400;
+    const height = 300;
+    const data = new Uint8ClampedArray(width * height * 4);
+    // Fill top-left with red, top-right with dark (black), bottom with bright (white)
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const idx = (y * width + x) * 4;
+        if (x < 100 && y < 100) {
+          // Dominant red
+          data[idx] = 240;
+          data[idx + 1] = 20;
+          data[idx + 2] = 20;
+        } else if (x >= 200 && y < 100) {
+          // Dark gray / black
+          data[idx] = 30;
+          data[idx + 1] = 30;
+          data[idx + 2] = 30;
+        } else {
+          // Light gray / white
+          data[idx] = 240;
+          data[idx + 1] = 240;
+          data[idx + 2] = 240;
+        }
+        data[idx + 3] = 255;
+      }
+    }
+
+    const matrix = quantizeImageData({ data, width, height } as any);
+    expect(matrix.length).toBe(300);
+    expect(matrix[0].length).toBe(400);
+    expect(matrix[50][50]).toBe(2); // Red
+    expect(matrix[50][250]).toBe(1); // Black
+    expect(matrix[200][200]).toBe(0); // White
   });
 });
 
-describe("eink refresh policy", () => {
-  const settings = { enabled: true, autoPush: true, refreshIntervalMinutes: 15, deviceId: null };
+describe("eink refresh policy and pixel deduplication", () => {
+  const activeSettings = { enabled: true, autoPush: true, refreshIntervalMinutes: 15, deviceId: null };
 
-  it("deduplicates identical image hashes", () => {
+  it("deduplicates by rendered pixel matrix hash", () => {
     const a = sampleSnapshot();
-    const b = sampleSnapshot();
-    expect(einkSnapshotHash(a)).toBe(einkSnapshotHash(b));
-    expect(einkSnapshotHash({ ...a, quotaRemainingPercent: 91 })).not.toBe(einkSnapshotHash(a));
+    // Metadata timestamp change alone does not alter rendered pixels
+    const b = sampleSnapshot({ analyticsUpdatedAt: "2026-08-30T12:00:00Z" });
+    const matrixA = renderEinkMatrix(a);
+    const matrixB = renderEinkMatrix(b);
+    expect(hashEinkPixels(matrixA)).toBe(hashEinkPixels(matrixB));
+
+    // Visible quota change alters pixels and hash
+    const c = sampleSnapshot({ quotaRemainingPercent: 40 });
+    const matrixC = renderEinkMatrix(c);
+    expect(hashEinkPixels(matrixC)).not.toBe(hashEinkPixels(matrixA));
   });
 
   it("respects minimum refresh interval", () => {
     const now = Date.now();
     const previous = sampleSnapshot();
-    const next = sampleSnapshot({ quotaRemainingPercent: 91 });
+    const next = sampleSnapshot({ quotaRemainingPercent: 40 });
+    const intervalMs = Math.max(10 * 60_000, activeSettings.refreshIntervalMinutes * 60_000);
     expect(
-      shouldRefreshEink(previous, next, now - EINK_DEFAULT_MIN_INTERVAL_MS + 1000, settings, now),
+      shouldRefreshEink(previous, next, now - intervalMs + 1000, activeSettings, now),
     ).toBe(false);
     expect(
-      shouldRefreshEink(previous, next, now - EINK_DEFAULT_MIN_INTERVAL_MS - 1000, settings, now),
+      shouldRefreshEink(previous, next, now - intervalMs - 1000, activeSettings, now),
     ).toBe(true);
   });
 
-  it("triggers refresh on reset signal status change", () => {
+  it("does not refresh when auto push is disabled", () => {
+    const disabledSettings = { enabled: true, autoPush: false, refreshIntervalMinutes: 15, deviceId: null };
+    const previous = sampleSnapshot();
+    const next = sampleSnapshot({ quotaRemainingPercent: 40 });
+    expect(shouldRefreshEink(previous, next, null, disabledSettings)).toBe(false);
+  });
+
+  it("triggers refresh on reset signal change when pixel output changes", () => {
     const previous = sampleSnapshot();
     const next = sampleSnapshot({ resetSignalStatus: "completed" });
-    expect(shouldRefreshEink(previous, next, null, settings)).toBe(true);
+    expect(shouldRefreshEink(previous, next, null, activeSettings)).toBe(true);
   });
 });
 

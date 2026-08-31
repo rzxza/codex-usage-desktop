@@ -22,6 +22,8 @@ export function buildEinkSnapshot(
       ? (analytics?.sevenDayDeltaPercent ?? null)
       : null;
 
+  const sevenDaySeries = analytics?.sevenDaySeries ?? [];
+
   return {
     quotaRemainingPercent: quotaWindow?.remainingPercent ?? null,
     quotaResetAt: quotaWindow?.resetsAt ?? null,
@@ -40,10 +42,24 @@ export function buildEinkSnapshot(
       expectedDays: last30?.completeness.expectedDays ?? 30,
     },
     sevenDayDeltaPercent,
+    sevenDaySeries,
     resetSignalStatus: resetSignal?.status ?? null,
+    resetSignalConfidence: resetSignal?.confidence ?? null,
     resetSignalEffectiveAt: resetSignal?.effectiveAt ?? null,
     analyticsUpdatedAt: analytics?.fetchedAt ?? null,
   };
+}
+
+export function hashEinkPixels(matrix: import("./types").EinkPixelMatrix): string {
+  let hash = 0x811c9dc5;
+  for (let y = 0; y < matrix.length; y += 1) {
+    const row = matrix[y];
+    for (let x = 0; x < row.length; x += 1) {
+      hash ^= row[x];
+      hash = Math.imul(hash, 0x01000193);
+    }
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
 }
 
 export function einkSnapshotHash(snapshot: EinkSnapshot): string {

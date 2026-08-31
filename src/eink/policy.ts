@@ -1,5 +1,6 @@
 import type { EinkSettings, EinkSnapshot } from "./types";
-import { einkSnapshotHash } from "./snapshot";
+import { hashEinkPixels } from "./snapshot";
+import { renderEinkMatrix } from "./renderer";
 
 export const EINK_DEFAULT_MIN_INTERVAL_MS = 10 * 60 * 1000;
 
@@ -10,27 +11,26 @@ export function shouldRefreshEink(
   settings: EinkSettings,
   now = Date.now(),
 ): boolean {
-  if (!settings.enabled) return false;
-  if (lastPushedAt !== null && now - lastPushedAt < EINK_DEFAULT_MIN_INTERVAL_MS) {
+  if (!settings.enabled || !settings.autoPush) {
+    return false;
+  }
+
+  const intervalMs = Math.max(
+    10 * 60_000,
+    (settings.refreshIntervalMinutes ?? 15) * 60_000,
+  );
+  if (lastPushedAt !== null && now - lastPushedAt < intervalMs) {
     return false;
   }
 
   if (previous === null) return true;
-  if (einkSnapshotHash(previous) === einkSnapshotHash(next)) return false;
 
-  if (previous.resetSignalStatus !== next.resetSignalStatus) return true;
-  if (previous.resetCardCount !== next.resetCardCount) return true;
-  if (previous.latestCompleteDate !== next.latestCompleteDate) return true;
-  if (previous.analyticsUpdatedAt !== next.analyticsUpdatedAt) return true;
-
-  if (previous.quotaRemainingPercent !== null && next.quotaRemainingPercent !== null) {
-    if (Math.abs(next.quotaRemainingPercent - previous.quotaRemainingPercent) >= 1) {
-      return true;
-    }
+  // Deduplicate by rendered 400x300 pixel hash
+  const prevMatrix = renderEinkMatrix(previous);
+  const nextMatrix = renderEinkMatrix(next);
+  if (hashEinkPixels(prevMatrix) === hashEinkPixels(nextMatrix)) {
+    return false;
   }
-  if (previous.sevenDayCredits !== next.sevenDayCredits) return true;
-  if (previous.thirtyDayCredits !== next.thirtyDayCredits) return true;
-  if (previous.sevenDayDeltaPercent !== next.sevenDayDeltaPercent) return true;
 
-  return false;
+  return true;
 }
