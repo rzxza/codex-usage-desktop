@@ -155,13 +155,15 @@
     "window_unknown": "未知",
     "subscription_expires": "到期时间 {{date}} (还剩 {{timeLeft}})",
     "auto_renew_off": "自动续订已关闭",
-    "quota_forecast_likely": "{{score}}% · 48h 内可能重置",
-    "quota_forecast_possible": "{{score}}% · 48h 内有机会",
-    "quota_forecast_low": "{{score}}% · 48h 内概率较低",
-    "quota_forecast_likely_label": "48h 内可能重置",
-    "quota_forecast_possible_label": "48h 内有机会",
-    "quota_forecast_low_label": "48h 内概率较低",
-    "quota_forecast_open": "打开 Codex 额度重置预测"
+    "reset_signal_completed": "已重置",
+    "reset_signal_scheduled": "已排期",
+    "reset_signal_likely": "高概率预告",
+    "reset_signal_none": "暂无明确信号",
+    "reset_signal_unavailable": "不可用",
+    "reset_signal_effective_at": "预计 {{time}}",
+    "reset_signal_confidence": "信号可信度 {{percent}}%",
+    "reset_signal_non_official": "非官方监测",
+    "reset_signal_open": "打开 Codex 重置信号来源"
   },
   "daily": {
     "title": "按日使用明细",
@@ -711,7 +713,15 @@
     "missing": "缺",
     "day_short": "日",
     "complete_short": "完整",
-    "no_data": "无数据"
+    "no_data": "无数据",
+    "reason_missing_counts": "缺少 counts",
+    "reason_missing_breakdown": "缺少 breakdown",
+    "reason_non_percent_units": "非 percent 单位",
+    "reason_unsupported_model": "不支持模型",
+    "reason_unsupported_speed": "不支持速度",
+    "reason_zero_counts_conflict": "counts 与 breakdown 冲突",
+    "reason_no_usable_model_share": "无可用模型占比",
+    "reason_uncalculable_credits": "无法计算 credits"
   },
   "compact": {
     "analytics_updated": "分析",
@@ -732,7 +742,7 @@
     "stale": "已过期",
     "title": "Codex 监控",
     "today_credits": "今日",
-    "toggle_tray": "显示紧凑监控",
+    "show_tray": "显示紧凑监控",
     "unavailable": "不可用",
     "weekly": "每周",
     "loading": "同步中",
@@ -756,6 +766,14 @@
     "complete_short": "完整",
     "pin": "置顶",
     "unpin": "取消置顶",
-    "no_data": "无数据"
+    "no_data": "无数据",
+    "reason_missing_counts": "缺少 counts",
+    "reason_missing_breakdown": "缺少 breakdown",
+    "reason_non_percent_units": "非 percent 单位",
+    "reason_unsupported_model": "不支持模型",
+    "reason_unsupported_speed": "不支持速度",
+    "reason_zero_counts_conflict": "counts 与 breakdown 冲突",
+    "reason_no_usable_model_share": "无可用模型占比",
+    "reason_uncalculable_credits": "无法计算 credits"
   }
 }

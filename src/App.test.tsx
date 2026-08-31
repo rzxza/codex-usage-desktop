@@ -24,7 +24,7 @@ vi.mock("@tauri-apps/api/core", () => ({
       updateTrayMock(...args);
       return Promise.resolve();
     }
-    if (command === "fetch_codex_quota_forecast") {
+    if (command === "fetch_codex_reset_signal") {
       return forecastInvokeMock();
     }
     if (command === "refresh_usage_data") {
@@ -189,7 +189,7 @@ describe("App", () => {
     localStorage.clear();
     invokeMock.mockReset();
     forecastInvokeMock.mockReset();
-    forecastInvokeMock.mockRejectedValue(new Error("Forecast unavailable"));
+    forecastInvokeMock.mockRejectedValue(new Error("Reset signal unavailable"));
     saveMock.mockReset();
     autostartEnableMock.mockReset();
     autostartEnableMock.mockResolvedValue(undefined);
@@ -424,11 +424,20 @@ describe("App", () => {
     });
   });
 
-  it("opens the external quota forecast when the forecast badge is clicked", async () => {
+  it("opens the external reset signal source when the signal card is clicked", async () => {
     forecastInvokeMock.mockResolvedValue({
-      score: 73,
-      fetchedAt: "2026-06-25T09:00:19.499Z",
-      nextRefreshAt: "2026-06-25T09:30:19.499Z",
+      status: "scheduled",
+      kind: "reset_scheduled",
+      confidence: 0.96,
+      announcedAt: null,
+      effectiveAt: "2026-08-30T14:30:00Z",
+      fetchedAt: "2026-08-30T10:00:00Z",
+      plans: [],
+      windows: [],
+      sourceUrl: "https://codexrunway.app/status",
+      rationale: null,
+      text: null,
+      stale: false,
     });
 
     invokeMock.mockImplementation(async (command: string, args?: { range?: string; url?: string }) => {
@@ -452,9 +461,9 @@ describe("App", () => {
 
     render(<App />);
 
-    await userEvent.click(await screen.findByRole("button", { name: "Open Codex quota reset forecast" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Open Codex reset signal source" }));
 
-    expect(invokeMock).toHaveBeenCalledWith("open_url", { url: "https://www.willcodexquotareset.com/" });
+    expect(invokeMock).toHaveBeenCalledWith("open_url", { url: "https://codexrunway.app/status" });
   });
 
   it("opens ChatGPT Usage when reset credits are clicked", async () => {
@@ -1604,21 +1613,21 @@ describe("App", () => {
             endDate: "2026-03-27",
             credits: null,
             models: [],
-            completeness: { expectedDays: 7, completeDays: 0, missingDates: [], isComplete: false },
+            completeness: { expectedDays: 7, completeDays: 0, missingDates: [], incompleteDays: [], isComplete: false },
           },
           previous7CompleteDays: {
             startDate: "2026-03-14",
             endDate: "2026-03-20",
             credits: null,
             models: [],
-            completeness: { expectedDays: 7, completeDays: 0, missingDates: [], isComplete: false },
+            completeness: { expectedDays: 7, completeDays: 0, missingDates: [], incompleteDays: [], isComplete: false },
           },
           last30CompleteDays: {
             startDate: "2026-02-26",
             endDate: "2026-03-27",
             credits: null,
             models: [],
-            completeness: { expectedDays: 30, completeDays: 0, missingDates: [], isComplete: false },
+            completeness: { expectedDays: 30, completeDays: 0, missingDates: [], incompleteDays: [], isComplete: false },
           },
           sevenDayDeltaPercent: null,
           sevenDaySeries: [],

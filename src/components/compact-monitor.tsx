@@ -9,6 +9,7 @@ import {
   fetchServerCreditAnalytics,
   type CodexLimitsResponse,
   type CompleteCreditWindow,
+  type IncompleteDayDiagnostic,
   type ServerCreditAnalyticsResponse,
 } from "@/lib/api";
 import { formatNumber } from "@/lib/formatters";
@@ -76,6 +77,12 @@ function formatCreditValue(value: number | null | undefined): string {
   return `≈${formatNumber(value)}`;
 }
 
+function incompleteDayText(d: IncompleteDayDiagnostic, t: (key: string, options?: any) => string) {
+  const reasons = d.reasons.map((reason) => t(`compact.reason_${reason}`)).join(", ");
+  const details = [...d.unsupportedModels, ...d.unsupportedSpeeds].join(", ");
+  return `${d.date}: ${reasons}${details ? ` (${details})` : ""}`;
+}
+
 function WindowStatus({
   window,
   t,
@@ -83,7 +90,7 @@ function WindowStatus({
   window: CompleteCreditWindow;
   t: (key: string, options?: any) => string;
 }) {
-  const { completeDays, expectedDays, missingDates, isComplete } = window.completeness;
+  const { completeDays, expectedDays, incompleteDays, isComplete } = window.completeness;
   if (isComplete) {
     return (
       <p className="mt-1 text-[10px] text-muted-foreground">
@@ -91,10 +98,14 @@ function WindowStatus({
       </p>
     );
   }
+  const title =
+    incompleteDays.length > 0
+      ? incompleteDays.map((d) => incompleteDayText(d, t)).join("; ")
+      : undefined;
   return (
     <p
       className="mt-1 text-[10px] leading-tight text-warning"
-      title={missingDates.length > 0 ? `${t("compact.missing")}: ${missingDates.join(", ")}` : undefined}
+      title={title}
     >
       {completeDays}/{expectedDays} {t("compact.day_short")} ⚠
     </p>
@@ -661,7 +672,7 @@ export function CompactMonitor() {
                 return (
                   <div
                     key={entry.model}
-                    className={cn("h-full", tone.bar)}
+                    className={cn("h-full", tone.className)}
                     style={{ width: `${Math.max(0, Math.min(100, entry.percent))}%` }}
                     title={`${entry.model}: ${oneDecimal(entry.percent)}%`}
                   />

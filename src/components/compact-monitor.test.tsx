@@ -64,21 +64,21 @@ const analyticsPayload = {
     endDate: "2026-08-23",
     credits: 10571,
     models: modelSplit,
-    completeness: { expectedDays: 7, completeDays: 7, missingDates: [], isComplete: true },
+    completeness: { expectedDays: 7, completeDays: 7, missingDates: [], incompleteDays: [], isComplete: true },
   },
   previous7CompleteDays: {
     startDate: "2026-08-10",
     endDate: "2026-08-16",
     credits: 9000,
     models: modelSplit,
-    completeness: { expectedDays: 7, completeDays: 7, missingDates: [], isComplete: true },
+    completeness: { expectedDays: 7, completeDays: 7, missingDates: [], incompleteDays: [], isComplete: true },
   },
   last30CompleteDays: {
     startDate: "2026-07-25",
     endDate: "2026-08-23",
     credits: 79345,
     models: modelSplit,
-    completeness: { expectedDays: 30, completeDays: 30, missingDates: [], isComplete: true },
+    completeness: { expectedDays: 30, completeDays: 30, missingDates: [], incompleteDays: [], isComplete: true },
   },
   sevenDayDeltaPercent: 17.5,
   sevenDaySeries: [
@@ -241,7 +241,7 @@ describe("CompactMonitor", () => {
       last7CompleteDays: {
         ...analyticsPayload.last7CompleteDays,
         models: [],
-        completeness: { expectedDays: 7, completeDays: 0, missingDates: [], isComplete: false },
+        completeness: { expectedDays: 7, completeDays: 0, missingDates: [], incompleteDays: [], isComplete: false },
       },
     };
     invokeHandlers.analytics.mockResolvedValue(pending);

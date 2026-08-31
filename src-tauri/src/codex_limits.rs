@@ -1,6 +1,9 @@
 use crate::{
     codex_environment::{selected_codex_environment, CodexEnvironment, CodexRuntime},
-    types::{CodexLimitWindow, CodexLimitsResponse, CodexQuotaForecastResponse, CodexResetCredit},
+    types::{
+        CodexLimitWindow, CodexLimitsResponse, CodexResetCredit, CodexResetSignalResponse,
+        CodexResetSignalWindow,
+    },
 };
 use chrono::{Local, SecondsFormat, TimeZone, Utc};
 use serde::Deserialize;
@@ -25,7 +28,7 @@ const CODEX_RESET_CREDITS_URL: &str =
     "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits";
 const CHATGPT_ACCOUNT_CHECK_URL: &str =
     "https://chatgpt.com/backend-api/accounts/check/v4-2023-04-27";
-const CODEX_QUOTA_FORECAST_URL: &str = "https://www.willcodexquotareset.com/api/forecast";
+const CODEX_RUNWAY_STATUS_URL: &str = "https://codexrunway.app/api/status.json";
 const RESET_CREDITS_CACHE_TTL: Duration = Duration::from_secs(5 * 60);
 
 #[derive(Debug, Clone, PartialEq)]
@@ -141,15 +144,47 @@ static RESET_CREDITS_CACHE: OnceLock<ResetCreditsCache> = OnceLock::new();
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct CodexQuotaForecastApiResponse {
-    fetched_at: String,
-    next_refresh_at: String,
-    forecast: CodexQuotaForecastScore,
+struct CodexRunwayStatusResponse {
+    status: Option<String>,
+    fetched_at: Option<String>,
+    generated_at: Option<String>,
+    monitor: Option<CodexRunwayMonitorStatus>,
+    #[serde(default)]
+    events: Vec<CodexRunwayEvent>,
+    #[serde(default)]
+    plans: Vec<serde_json::Value>,
+    #[serde(default)]
+    windows: Vec<CodexRunwayWindow>,
+    source_url: Option<String>,
+    rationale: Option<String>,
+    text: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
-struct CodexQuotaForecastScore {
-    score: i64,
+#[serde(rename_all = "camelCase")]
+struct CodexRunwayMonitorStatus {
+    status: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CodexRunwayEvent {
+    kind: Option<String>,
+    confidence: Option<f64>,
+    announced_at: Option<String>,
+    effective_at: Option<String>,
+    source_url: Option<String>,
+    rationale: Option<String>,
+    text: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CodexRunwayWindow {
+    label: Option<String>,
+    starts_at: Option<String>,
+    ends_at: Option<String>,
+    confidence: Option<f64>,
 }
 
 #[derive(Debug, Clone)]
@@ -186,39 +221,143 @@ pub fn fetch_codex_limits() -> Result<CodexLimitsResponse, String> {
     fetch_codex_limits_with(fetch_oauth_limits, fetch_cli_limits, fetch_account_snapshot)
 }
 
-pub fn fetch_codex_quota_forecast() -> Result<CodexQuotaForecastResponse, String> {
+pub fn fetch_codex_reset_signal() -> Result<CodexResetSignalResponse, String> {
     let client = reqwest::blocking::Client::builder()
         .timeout(Duration::from_secs(6))
         .build()
-        .map_err(|error| format!("Failed to build forecast HTTP client: {error}"))?;
+        .map_err(|error| format!("Failed to build reset-signal HTTP client: {error}"))?;
 
     let response = client
-        .get(CODEX_QUOTA_FORECAST_URL)
+        .get(CODEX_RUNWAY_STATUS_URL)
         .header("User-Agent", "codex-usage-desktop")
         .header("Accept", "application/json")
         .send()
-        .map_err(|error| format!("Forecast request failed: {error}"))?;
+        .map_err(|error| format!("Reset signal request failed: {error}"))?;
 
     let status = response.status();
     if !status.is_success() {
-        return Err(format!("Forecast endpoint returned status {status}"));
+        return Err(format!("Reset signal endpoint returned status {status}"));
     }
 
     let body = response
         .text()
-        .map_err(|error| format!("Failed to read forecast response: {error}"))?;
+        .map_err(|error| format!("Failed to read reset signal response: {error}"))?;
 
-    parse_codex_quota_forecast(&body)
+    parse_codex_reset_signal(&body)
 }
 
-fn parse_codex_quota_forecast(body: &str) -> Result<CodexQuotaForecastResponse, String> {
-    let response: CodexQuotaForecastApiResponse = serde_json::from_str(body)
-        .map_err(|error| format!("Failed to parse forecast JSON: {error}"))?;
+fn plan_text(value: &serde_json::Value) -> String {
+    if let Some(text) = value.as_str() {
+        return text.to_string();
+    }
+    if let Some(obj) = value.as_object() {
+        for key in ["text", "title", "label", "name"] {
+            if let Some(text) = obj.get(key).and_then(serde_json::Value::as_str) {
+                return text.to_string();
+            }
+        }
+    }
+    String::new()
+}
 
-    Ok(CodexQuotaForecastResponse {
-        score: response.forecast.score,
-        fetched_at: response.fetched_at,
-        next_refresh_at: response.next_refresh_at,
+fn signal_from_events(events: &[CodexRunwayEvent]) -> (String, Option<&CodexRunwayEvent>) {
+    // A future scheduled event is more actionable than an older completed one.
+    for priority_kind in ["reset_scheduled", "scheduled"] {
+        if let Some(event) = events.iter().find(|e| e.kind.as_deref() == Some(priority_kind)) {
+            return ("scheduled".to_string(), Some(event));
+        }
+    }
+    for priority_kind in ["reset_completed", "completed"] {
+        if let Some(event) = events.iter().find(|e| e.kind.as_deref() == Some(priority_kind)) {
+            return ("completed".to_string(), Some(event));
+        }
+    }
+    for event in events.iter() {
+        if matches!(
+            event.kind.as_deref(),
+            Some("likely" | "preview" | "reset_likely")
+        ) && event.confidence.unwrap_or(0.0) >= 0.8
+        {
+            return ("likely".to_string(), Some(event));
+        }
+    }
+    ("none".to_string(), None)
+}
+
+fn is_stale_generated_at(generated_at: Option<&str>) -> bool {
+    let Some(raw) = generated_at else {
+        return false;
+    };
+    match chrono::DateTime::parse_from_rfc3339(raw) {
+        Ok(dt) => {
+            let age = Utc::now().signed_duration_since(dt.with_timezone(&Utc));
+            age.num_hours() > 24
+        }
+        Err(_) => false,
+    }
+}
+
+fn parse_codex_reset_signal(body: &str) -> Result<CodexResetSignalResponse, String> {
+    let response: CodexRunwayStatusResponse = serde_json::from_str(body)
+        .map_err(|error| format!("Failed to parse reset signal JSON: {error}"))?;
+
+    let monitor_ok = response
+        .monitor
+        .as_ref()
+        .and_then(|monitor| monitor.status.as_deref())
+        .map(|status| status == "ok")
+        .unwrap_or(true);
+
+    let (status, event) = signal_from_events(&response.events);
+    let status = if !monitor_ok {
+        "unavailable".to_string()
+    } else if response.status.as_deref() == Some("error") {
+        "unavailable".to_string()
+    } else {
+        status
+    };
+
+    let stale = is_stale_generated_at(response.generated_at.as_deref());
+    let fetched_at = response
+        .fetched_at
+        .clone()
+        .unwrap_or_else(|| Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true));
+    let source_url = response
+        .source_url
+        .clone()
+        .or_else(|| event.and_then(|e| e.source_url.clone()))
+        .unwrap_or_else(|| CODEX_RUNWAY_STATUS_URL.to_string());
+    let rationale = response
+        .rationale
+        .clone()
+        .or_else(|| event.and_then(|e| e.rationale.clone()));
+    let text = response
+        .text
+        .clone()
+        .or_else(|| event.and_then(|e| e.text.clone()));
+
+    Ok(CodexResetSignalResponse {
+        status,
+        kind: event.and_then(|e| e.kind.clone()),
+        confidence: event.and_then(|e| e.confidence),
+        announced_at: event.and_then(|e| e.announced_at.clone()),
+        effective_at: event.and_then(|e| e.effective_at.clone()),
+        fetched_at,
+        plans: response.plans.iter().map(plan_text).filter(|s| !s.is_empty()).collect(),
+        windows: response
+            .windows
+            .into_iter()
+            .map(|window| CodexResetSignalWindow {
+                label: window.label,
+                starts_at: window.starts_at,
+                ends_at: window.ends_at,
+                confidence: window.confidence,
+            })
+            .collect(),
+        source_url,
+        rationale,
+        text,
+        stale,
     })
 }
 
@@ -1894,30 +2033,141 @@ mod tests {
     }
 
     #[test]
-    fn parses_quota_forecast_from_full_response() {
-        let response = parse_codex_quota_forecast(
+    fn parses_reset_completed_signal() {
+        let response = parse_codex_reset_signal(
             r#"{
-                "fetchedAt": "2026-06-25T09:00:19.499Z",
-                "incidents": [{"id": "incident-1"}],
-                "nextRefreshAt": "2026-06-25T09:30:19.499Z",
-                "forecast": {
-                    "breakdown": [{"label": "baseline", "points": 12}],
-                    "daysSinceReset": 7,
-                    "score": 73
-                },
-                "history": [{"toScore": 73}]
+                "status": "ok",
+                "fetchedAt": "2026-08-30T09:00:00Z",
+                "generatedAt": "2026-08-30T08:59:00Z",
+                "events": [{
+                    "kind": "reset_completed",
+                    "confidence": 0.99,
+                    "effectiveAt": "2026-08-30T08:35:00Z",
+                    "text": "Codex weekly reset completed"
+                }],
+                "sourceUrl": "https://codexrunway.app/status",
+                "rationale": "observed reset"
             }"#,
         )
         .unwrap();
+        assert_eq!(response.status, "completed");
+        assert_eq!(response.kind.as_deref(), Some("reset_completed"));
+        assert_eq!(response.confidence, Some(0.99));
+        assert_eq!(response.effective_at.as_deref(), Some("2026-08-30T08:35:00Z"));
+        assert!(!response.stale);
+    }
 
-        assert_eq!(
-            response,
-            CodexQuotaForecastResponse {
-                score: 73,
-                fetched_at: "2026-06-25T09:00:19.499Z".to_string(),
-                next_refresh_at: "2026-06-25T09:30:19.499Z".to_string(),
-            }
-        );
+    #[test]
+    fn parses_reset_scheduled_signal() {
+        let response = parse_codex_reset_signal(
+            r#"{
+                "status": "ok",
+                "generatedAt": "2026-08-30T10:00:00Z",
+                "events": [
+                    {"kind": "reset_completed", "effectiveAt": "2026-08-23T08:35:00Z", "confidence": 0.9},
+                    {"kind": "reset_scheduled", "confidence": 0.96, "effectiveAt": "2026-08-30T14:30:00Z"}
+                ],
+                "plans": [{"text": "Reset window 14:00-15:00"}]
+            }"#,
+        )
+        .unwrap();
+        assert_eq!(response.status, "scheduled");
+        assert_eq!(response.kind.as_deref(), Some("reset_scheduled"));
+        assert_eq!(response.confidence, Some(0.96));
+        assert_eq!(response.effective_at.as_deref(), Some("2026-08-30T14:30:00Z"));
+        assert_eq!(response.plans, vec!["Reset window 14:00-15:00"]);
+    }
+
+    #[test]
+    fn parses_likely_high_confidence_signal() {
+        let response = parse_codex_reset_signal(
+            r#"{
+                "status": "ok",
+                "generatedAt": "2026-08-30T10:00:00Z",
+                "events": [
+                    {"kind": "preview", "confidence": 0.83, "announcedAt": "2026-08-30T09:00:00Z"}
+                ]
+            }"#,
+        )
+        .unwrap();
+        assert_eq!(response.status, "likely");
+        assert_eq!(response.kind.as_deref(), Some("preview"));
+        assert_eq!(response.confidence, Some(0.83));
+    }
+
+    #[test]
+    fn parses_no_event_signal() {
+        let response = parse_codex_reset_signal(
+            r#"{
+                "status": "ok",
+                "generatedAt": "2026-08-30T10:00:00Z",
+                "events": []
+            }"#,
+        )
+        .unwrap();
+        assert_eq!(response.status, "none");
+        assert_eq!(response.kind, None);
+    }
+
+    #[test]
+    fn malformed_reset_signal_is_error() {
+        assert!(parse_codex_reset_signal("{not json}").is_err());
+    }
+
+    #[test]
+    fn unknown_kind_is_ignored_safely() {
+        let response = parse_codex_reset_signal(
+            r#"{
+                "status": "ok",
+                "generatedAt": "2026-08-30T10:00:00Z",
+                "events": [{"kind": "mystery-event", "confidence": 0.9}]
+            }"#,
+        )
+        .unwrap();
+        assert_eq!(response.status, "none");
+        assert_eq!(response.kind, None);
+    }
+
+    #[test]
+    fn monitor_not_ok_becomes_unavailable() {
+        let response = parse_codex_reset_signal(
+            r#"{
+                "status": "ok",
+                "monitor": {"status": "degraded"},
+                "generatedAt": "2026-08-30T10:00:00Z",
+                "events": [{"kind": "reset_scheduled", "confidence": 0.9}]
+            }"#,
+        )
+        .unwrap();
+        assert_eq!(response.status, "unavailable");
+    }
+
+    #[test]
+    fn stale_generated_at_is_marked() {
+        let response = parse_codex_reset_signal(
+            r#"{
+                "status": "ok",
+                "generatedAt": "2020-01-01T00:00:00Z",
+                "events": [{"kind": "reset_completed", "confidence": 0.9}]
+            }"#,
+        )
+        .unwrap();
+        assert_eq!(response.status, "completed");
+        assert!(response.stale);
+    }
+
+    #[test]
+    fn missing_confidence_does_not_claim_likely() {
+        let response = parse_codex_reset_signal(
+            r#"{
+                "status": "ok",
+                "generatedAt": "2026-08-30T10:00:00Z",
+                "events": [{"kind": "preview"}]
+            }"#,
+        )
+        .unwrap();
+        assert_eq!(response.status, "none");
+        assert_eq!(response.confidence, None);
     }
 
     #[test]

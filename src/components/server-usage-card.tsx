@@ -1,7 +1,13 @@
 import { Card, CardContent } from "@/components/ui/card";
-import type { ServerCreditAnalyticsResponse } from "@/lib/api";
+import type { IncompleteDayDiagnostic, ServerCreditAnalyticsResponse } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
+
+function incompleteDayText(d: IncompleteDayDiagnostic, t: (key: string, options?: any) => string) {
+  const reasons = d.reasons.map((reason) => t(`server_usage.reason_${reason}`)).join(", ");
+  const details = [...d.unsupportedModels, ...d.unsupportedSpeeds].join(", ");
+  return `${d.date}: ${reasons}${details ? ` (${details})` : ""}`;
+}
 
 type ServerUsageCardProps = {
   analytics: ServerCreditAnalyticsResponse | null;
@@ -114,9 +120,11 @@ export function ServerUsageCard({ analytics, error, isLoading }: ServerUsageCard
                   ? `${t("server_usage.known")} `
                   : ""}
                 {last7.completeness.completeDays}/{last7.completeness.expectedDays} {t("server_usage.day_short")}
-                {last7.completeness.missingDates.length > 0
-                  ? ` · ${t("server_usage.missing")}: ${last7.completeness.missingDates.join(", ")}`
-                  : ""}
+                {last7.completeness.incompleteDays.length > 0
+                  ? ` · ${last7.completeness.incompleteDays.map((d) => incompleteDayText(d, t)).join("; ")}`
+                  : last7.completeness.missingDates.length > 0
+                    ? ` · ${t("server_usage.missing")}: ${last7.completeness.missingDates.join(", ")}`
+                    : ""}
               </div>
             )}
           </div>
@@ -138,9 +146,11 @@ export function ServerUsageCard({ analytics, error, isLoading }: ServerUsageCard
                   ? `${t("server_usage.known")} `
                   : ""}
                 {last30.completeness.completeDays}/{last30.completeness.expectedDays} {t("server_usage.day_short")}
-                {last30.completeness.missingDates.length > 0
-                  ? ` · ${t("server_usage.missing")}: ${last30.completeness.missingDates.join(", ")}`
-                  : ""}
+                {last30.completeness.incompleteDays.length > 0
+                  ? ` · ${last30.completeness.incompleteDays.map((d) => incompleteDayText(d, t)).join("; ")}`
+                  : last30.completeness.missingDates.length > 0
+                    ? ` · ${t("server_usage.missing")}: ${last30.completeness.missingDates.join(", ")}`
+                    : ""}
               </div>
             )}
           </div>

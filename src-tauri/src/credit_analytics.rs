@@ -3,14 +3,39 @@ use crate::{
     server_analytics::{TokenUsageBreakdownDay, TokenUsageBreakdownModel, WorkspaceUsageCountsDay},
     types::{
         CalibrationDiagnostics, CalibrationStatus, CalibrationSummary, CompleteCreditWindow,
-        CreditAggregate, CreditWindowCompleteness, DailyCreditUsage, ModelCreditUsage,
-        ServerCreditAnalyticsResponse, ServerCreditAnalyticsStatus, SevenDayCreditPoint,
+        CreditAggregate, CreditWindowCompleteness, DailyCreditUsage, IncompleteDayDiagnostic,
+        IncompleteDayReason, ModelCreditUsage, ServerCreditAnalyticsResponse,
+        ServerCreditAnalyticsStatus, SevenDayCreditPoint,
     },
 };
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 
 const MILLION: f64 = 1_000_000.0;
+
+#[derive(Debug, Clone, PartialEq)]
+enum DayClassification {
+    Complete,
+    Incomplete {
+        reasons: Vec<IncompleteDayReason>,
+        unsupported_models: Vec<String>,
+        unsupported_speeds: Vec<String>,
+    },
+}
+
+impl DayClassification {
+    fn incomplete(reason: IncompleteDayReason) -> Self {
+        Self::Incomplete {
+            reasons: vec![reason],
+            unsupported_models: Vec::new(),
+            unsupported_speeds: Vec::new(),
+        }
+    }
+
+    fn is_complete(&self) -> bool {
+        matches!(self, Self::Complete)
+    }
+}
 
 pub fn build_server_credit_analytics(
     counts: Vec<WorkspaceUsageCountsDay>,
@@ -46,9 +71,9 @@ pub fn build_server_credit_analytics(
                 units_seen = Some(breakdown_day.units.clone());
             }
             for model in &breakdown_day.models {
-                if !credit_rates::is_supported_rate_model(&model.model) {
+                if credit_rates::lookup_model_rate(&model.model).is_none() {
                     unsupported_models_seen.insert(model.model.clone());
-                } else if !credit_rates::is_standard_speed(&model.speed) {
+                } else if credit_rates::speed_multiplier(&model.model, &model.speed).is_none() {
                     unsupported_speeds_seen.insert(model.speed.clone());
                 }
             }
@@ -231,39 +256,88 @@ fn base_credits(day: &WorkspaceUsageCountsDay) -> f64 {
         / MILLION
 }
 
-fn is_complete_day(
+fn classify_day(
     date: &str,
     today: &str,
     counts_by_date: &BTreeMap<String, WorkspaceUsageCountsDay>,
     breakdowns_by_date: &BTreeMap<String, TokenUsageBreakdownDay>,
-) -> bool {
+) -> DayClassification {
     if date >= today {
-        return false;
+        return DayClassification::incomplete(IncompleteDayReason::UncalculableCredits);
     }
     let Some(counts_day) = counts_by_date.get(date) else {
-        return false;
+        return DayClassification::incomplete(IncompleteDayReason::MissingCounts);
     };
     let total_tokens = token_total(counts_day);
     // A zero-usage day is complete only when the breakdown does not claim any
     // nonzero usage. If a breakdown exists with positive percent while counts
     // say zero, the two source snapshots are inconsistent -> fail closed.
     if total_tokens == 0 {
-        return breakdowns_by_date
-            .get(date)
-            .map(|breakdown| breakdown.models.iter().all(|model| model.credits <= 0.0))
-            .unwrap_or(true);
+        let Some(breakdown_day) = breakdowns_by_date.get(date) else {
+            return DayClassification::Complete;
+        };
+        if breakdown_day.models.iter().any(|model| model.credits > 0.0) {
+            return DayClassification::incomplete(IncompleteDayReason::ZeroCountsConflict);
+        }
+        return DayClassification::Complete;
     }
     let Some(breakdown_day) = breakdowns_by_date.get(date) else {
-        return false;
+        return DayClassification::incomplete(IncompleteDayReason::MissingBreakdown);
     };
     if breakdown_day.units != "percent" {
-        return false;
+        return DayClassification::incomplete(IncompleteDayReason::NonPercentUnits);
     }
+    if breakdown_day.models.is_empty() {
+        return DayClassification::incomplete(IncompleteDayReason::NoUsableModelShare);
+    }
+
+    let mut unsupported_models = Vec::new();
+    let mut unsupported_speeds = Vec::new();
+    for model in &breakdown_day.models {
+        if credit_rates::lookup_model_rate(&model.model).is_none() {
+            if !unsupported_models.contains(&model.model) {
+                unsupported_models.push(model.model.clone());
+            }
+        } else if credit_rates::speed_multiplier(&model.model, &model.speed).is_none() {
+            if !unsupported_speeds.contains(&model.speed) {
+                unsupported_speeds.push(model.speed.clone());
+            }
+        }
+    }
+
     let Some((known, _)) = usable_models(&breakdown_day.models) else {
-        return false;
+        let mut reasons = Vec::new();
+        if !unsupported_models.is_empty() {
+            reasons.push(IncompleteDayReason::UnsupportedModel);
+        }
+        if !unsupported_speeds.is_empty() {
+            reasons.push(IncompleteDayReason::UnsupportedSpeed);
+        }
+        reasons.push(IncompleteDayReason::NoUsableModelShare);
+        return DayClassification::Incomplete {
+            reasons,
+            unsupported_models,
+            unsupported_speeds,
+        };
     };
     let total_percent: f64 = known.iter().map(|model| model.credits).sum();
-    total_percent > 0.0
+    if total_percent <= 0.0 {
+        return DayClassification::incomplete(IncompleteDayReason::NoUsableModelShare);
+    }
+    let weighted = weighted_percent_sum_known(&known);
+    if weighted <= 0.0 {
+        return DayClassification::incomplete(IncompleteDayReason::UncalculableCredits);
+    }
+    DayClassification::Complete
+}
+
+fn is_complete_day(
+    date: &str,
+    today: &str,
+    counts_by_date: &BTreeMap<String, WorkspaceUsageCountsDay>,
+    breakdowns_by_date: &BTreeMap<String, TokenUsageBreakdownDay>,
+) -> bool {
+    classify_day(date, today, counts_by_date, breakdowns_by_date).is_complete()
 }
 
 fn complete_window(
@@ -278,12 +352,26 @@ fn complete_window(
         .unwrap_or_else(|_| end_date.to_string());
     let mut complete_dates = Vec::new();
     let mut missing_dates = Vec::new();
+    let mut incomplete_days = Vec::new();
     let mut current = start_date.clone();
     while current.as_str() <= end_date {
-        if is_complete_day(&current, today, counts_by_date, breakdowns_by_date) {
-            complete_dates.push(current.clone());
-        } else {
-            missing_dates.push(current.clone());
+        match classify_day(&current, today, counts_by_date, breakdowns_by_date) {
+            DayClassification::Complete => {
+                complete_dates.push(current.clone());
+            }
+            DayClassification::Incomplete {
+                reasons,
+                unsupported_models,
+                unsupported_speeds,
+            } => {
+                missing_dates.push(current.clone());
+                incomplete_days.push(IncompleteDayDiagnostic {
+                    date: current.clone(),
+                    reasons,
+                    unsupported_models,
+                    unsupported_speeds,
+                });
+            }
         }
         current = crate::date::shift_date_key(&current, 1).unwrap_or_else(|_| current.clone());
     }
@@ -336,6 +424,7 @@ fn complete_window(
             expected_days: window_days as u32,
             complete_days: complete_dates.len() as u32,
             missing_dates,
+            incomplete_days,
             is_complete,
         },
     }
@@ -373,18 +462,17 @@ fn seven_day_series(
 /// rates are never guessed (fail closed).
 const NEGLIGIBLE_MODEL_PERCENT: f64 = 0.05;
 
-/// Splits a breakdown into rate-table models on standard speed and the combined
-/// percentage share of everything else. Returns `None` when no usable models
-/// remain or the ignored share is material, meaning the day must be rejected.
+/// Splits a breakdown into supported model+speed entries (standard and fast)
+/// and the combined percentage share of everything else. Returns `None` when
+/// no usable models remain or the ignored share is material, meaning the day
+/// must be rejected.
 fn usable_models(
     models: &[TokenUsageBreakdownModel],
 ) -> Option<(Vec<&TokenUsageBreakdownModel>, f64)> {
     let mut known = Vec::new();
     let mut ignored_percent = 0.0;
     for model in models {
-        if credit_rates::is_supported_rate_model(&model.model)
-            && credit_rates::is_standard_speed(&model.speed)
-        {
+        if credit_rates::effective_multiplier(&model.model, &model.speed).is_some() {
             known.push(model);
         } else {
             ignored_percent += model.credits;
@@ -445,8 +533,8 @@ fn weighted_percent_sum_known(models: &[&TokenUsageBreakdownModel]) -> f64 {
     models
         .iter()
         .filter_map(|model| {
-            credit_rates::lookup_model_rate(&model.model)
-                .map(|rate| model.credits / f64::from(rate.base_multiplier))
+            credit_rates::effective_multiplier(&model.model, &model.speed)
+                .map(|multiplier| model.credits / multiplier)
         })
         .sum()
 }
@@ -860,7 +948,7 @@ mod tests {
     }
 
     #[test]
-    fn skips_fast_speed_calibration_day() {
+    fn includes_fast_speed_calibration_day() {
         let counts = vec![
             counts("2026-08-20", 100_000, 0, 100_000, 200_000),
             counts("2026-08-19", 100_000, 0, 100_000, 200_000),
@@ -884,16 +972,8 @@ mod tests {
             "2026-08-01",
             "2026-08-21",
         );
-        assert_eq!(response.calibration.sample_count, 1);
-        assert_eq!(
-            response
-                .daily
-                .iter()
-                .find(|day| day.date == "2026-08-20")
-                .unwrap()
-                .credits,
-            None
-        );
+        assert_eq!(response.calibration.sample_count, 2);
+        assert_eq!(response.latest_complete_date.as_deref(), Some("2026-08-20"));
     }
 
     #[test]
@@ -1629,6 +1709,155 @@ mod tests {
         assert_eq!(response.latest_complete_date.as_deref(), Some("2026-08-22"));
         assert!(response.last_7_complete_days.completeness.is_complete);
         assert_eq!(response.last_7_complete_days.completeness.complete_days, 7);
+    }
+
+    #[test]
+    fn mixed_standard_fast_is_complete() {
+        let mut count_rows = Vec::new();
+        let mut breakdowns = Vec::new();
+        for day in 23..=29 {
+            let date = format!("2026-08-{day:02}");
+            count_rows.push(counts(&date, 100_000, 0, 100_000, 200_000));
+            if day == 29 {
+                breakdowns.push(breakdown(
+                    &date,
+                    "percent",
+                    vec![
+                        ("gpt-5.6-sol", "standard", 57.907069490435546),
+                        ("gpt-5.6-sol", "fast", 38.96808051725153),
+                        ("gpt-5.6-luna", "standard", 1.4925055488933103),
+                        ("gpt-5.6-luna", "fast", 1.4269849193735613),
+                        ("gpt-5.6-terra", "standard", 0.20535952404605798),
+                    ],
+                ));
+            } else {
+                breakdowns.push(breakdown(
+                    &date,
+                    "percent",
+                    vec![("gpt-5.6-luna", "standard", 100.0)],
+                ));
+            }
+        }
+        let response = build_server_credit_analytics(
+            count_rows,
+            breakdowns,
+            "2026-08-30",
+            "2026-08-01",
+            "2026-08-30",
+        );
+        assert_eq!(response.latest_complete_date.as_deref(), Some("2026-08-29"));
+        assert!(response.last_7_complete_days.completeness.is_complete);
+        assert_eq!(response.last_7_complete_days.completeness.complete_days, 7);
+        assert!(!response.last_7_complete_days
+            .completeness
+            .missing_dates
+            .contains(&"2026-08-29".to_string()));
+        assert!(response.last_7_complete_days
+            .completeness
+            .incomplete_days
+            .is_empty());
+    }
+
+    #[test]
+    fn real_20260829_breakdown_is_complete() {
+        let counts = vec![counts("2026-08-29", 100_000, 0, 100_000, 200_000)];
+        let breakdowns = vec![breakdown(
+            "2026-08-29",
+            "percent",
+            vec![
+                ("gpt-5.6-sol", "standard", 57.907069490435546),
+                ("gpt-5.6-sol", "fast", 38.96808051725153),
+                ("gpt-5.6-luna", "standard", 1.4925055488933103),
+                ("gpt-5.6-luna", "fast", 1.4269849193735613),
+                ("gpt-5.6-terra", "standard", 0.20535952404605798),
+            ],
+        )];
+        let response = build_server_credit_analytics(
+            counts,
+            breakdowns,
+            "2026-08-30",
+            "2026-08-01",
+            "2026-08-30",
+        );
+        assert_eq!(response.latest_complete_date.as_deref(), Some("2026-08-29"));
+        assert!(!response.last_7_complete_days
+            .completeness
+            .missing_dates
+            .contains(&"2026-08-29".to_string()));
+    }
+
+    #[test]
+    fn real_20260829_weighted_denominator_matches_golden() {
+        let day = breakdown(
+            "2026-08-29",
+            "percent",
+            vec![
+                ("gpt-5.6-sol", "standard", 57.907069490435546),
+                ("gpt-5.6-sol", "fast", 38.96808051725153),
+                ("gpt-5.6-luna", "standard", 1.4925055488933103),
+                ("gpt-5.6-luna", "fast", 1.4269849193735613),
+                ("gpt-5.6-terra", "standard", 0.20535952404605798),
+            ],
+        );
+        let models: Vec<&TokenUsageBreakdownModel> = day.models.iter().collect();
+        let weighted = weighted_percent_sum_known(&models);
+        assert!(
+            (weighted - 5.023607536940787).abs() < 1e-9,
+            "weighted denominator {weighted} does not match golden 5.023607536940787"
+        );
+    }
+
+    #[test]
+    fn unsupported_speeds_do_not_include_legal_fast() {
+        let counts = vec![
+            counts("2026-08-29", 100_000, 0, 100_000, 200_000),
+            counts("2026-08-28", 100_000, 0, 100_000, 200_000),
+        ];
+        let breakdowns = vec![
+            breakdown(
+                "2026-08-29",
+                "percent",
+                vec![
+                    ("gpt-5.6-sol", "standard", 50.0),
+                    ("gpt-5.6-sol", "fast", 50.0),
+                ],
+            ),
+            breakdown(
+                "2026-08-28",
+                "percent",
+                vec![
+                    ("gpt-5.6-luna", "standard", 99.0),
+                    ("gpt-5.6-luna", "turbo", 1.0),
+                ],
+            ),
+        ];
+        let response = build_server_credit_analytics(
+            counts,
+            breakdowns,
+            "2026-08-30",
+            "2026-08-01",
+            "2026-08-30",
+        );
+        let diagnostics = response.diagnostics.unwrap();
+        assert!(diagnostics.unsupported_speeds.contains(&"turbo".to_string()));
+        assert!(!diagnostics.unsupported_speeds.contains(&"fast".to_string()));
+    }
+
+    #[test]
+    fn synthetic_fast_compute_k_day_recovers_expected_k() {
+        let counts = counts("2026-08-20", 100_000, 100_000, 200_000, 400_000);
+        let day = breakdown(
+            "2026-08-20",
+            "percent",
+            vec![
+                ("gpt-5.6-sol", "standard", 25.0),
+                ("gpt-5.5", "fast", 25.0),
+                ("gpt-5.6-luna", "standard", 50.0),
+            ],
+        );
+        let models: Vec<&TokenUsageBreakdownModel> = day.models.iter().collect();
+        let expected = base_credits(&counts) / weighted_percent_sum_known(&models);
+        assert_eq!(compute_k_day(&counts, &day), Some(expected));
     }
 
     #[test]

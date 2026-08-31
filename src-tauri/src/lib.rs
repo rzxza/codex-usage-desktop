@@ -20,7 +20,7 @@ use tauri::menu::{Menu, MenuItem, MenuItemKind};
 use tauri::tray::{MouseButton, TrayIconBuilder, TrayIconEvent};
 use tauri::{Emitter, Manager};
 use types::{
-    CodexLimitsResponse, CodexQuotaForecastResponse, ExportResponse, ModelPricingCatalogResponse,
+    CodexLimitsResponse, CodexResetSignalResponse, ExportResponse, ModelPricingCatalogResponse,
     MonthlyUsageResponse, OverviewResponse, ProjectAnalyticsResponse, ScanResponse,
     ServerCreditAnalyticsResponse, SessionDetailRow, SessionReplayDetail, UpdateCheckResponse,
     UsageRefreshResponse,
@@ -199,8 +199,8 @@ async fn fetch_codex_limits() -> Result<CodexLimitsResponse, String> {
 }
 
 #[tauri::command]
-async fn fetch_codex_quota_forecast() -> Result<CodexQuotaForecastResponse, String> {
-    tauri::async_runtime::spawn_blocking(codex_limits::fetch_codex_quota_forecast)
+async fn fetch_codex_reset_signal() -> Result<CodexResetSignalResponse, String> {
+    tauri::async_runtime::spawn_blocking(codex_limits::fetch_codex_reset_signal)
         .await
         .map_err(|error| error.to_string())?
 }
@@ -757,7 +757,7 @@ pub fn run() {
                             let _ = window.set_focus();
                         }
                     }
-                    "toggle_compact" => {
+                    "show_compact" => {
                         if let Some(window) = app.get_webview_window("compact") {
                             let _ = window.show();
                             let _ = window.unminimize();
@@ -822,7 +822,7 @@ pub fn run() {
             fetch_model_pricing_catalog,
             fetch_monthly_usage,
             fetch_codex_limits,
-            fetch_codex_quota_forecast,
+            fetch_codex_reset_signal,
             fetch_server_credit_analytics,
             reset_usage_state,
             export_usage,

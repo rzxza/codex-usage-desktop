@@ -41,7 +41,7 @@ export default function App() {
     monthlyUsage,
     codexLimits,
     codexLimitsError,
-    codexQuotaForecast,
+    codexResetSignal,
     serverAnalytics,
     serverAnalyticsError,
     isServerAnalyticsLoading,
@@ -76,7 +76,7 @@ export default function App() {
     handleManualUpdateCheck,
     handleUpgrade,
     handleOpenUpdateRelease,
-    handleOpenCodexQuotaForecast,
+    handleOpenCodexResetSignal,
     handleOpenResetCredits,
     handleLaunchAtLoginChange,
     trayTitleShow,
@@ -314,8 +314,8 @@ export default function App() {
                 <CodexLimitsCard
                   limits={codexLimits}
                   error={codexLimitsError}
-                  quotaForecast={codexQuotaForecast}
-                  onOpenQuotaForecast={() => void handleOpenCodexQuotaForecast()}
+                  resetSignal={codexResetSignal}
+                  onOpenResetSignal={() => void handleOpenCodexResetSignal()}
                   onOpenResetCredits={() => void handleOpenResetCredits()}
                 />
               </div>

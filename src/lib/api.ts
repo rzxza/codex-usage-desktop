@@ -140,10 +140,26 @@ export type CodexLimitsResponse = {
   subscriptionWillRenew?: boolean | null;
 };
 
-export type CodexQuotaForecastResponse = {
-  score: number;
+export type CodexResetSignalWindow = {
+  label?: string | null;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  confidence?: number | null;
+};
+
+export type CodexResetSignalResponse = {
+  status: "completed" | "scheduled" | "likely" | "none" | "unavailable";
+  kind?: string | null;
+  confidence?: number | null;
+  announcedAt?: string | null;
+  effectiveAt?: string | null;
   fetchedAt: string;
-  nextRefreshAt: string;
+  plans: string[];
+  windows: CodexResetSignalWindow[];
+  sourceUrl: string;
+  rationale?: string | null;
+  text?: string | null;
+  stale: boolean;
 };
 
 
@@ -185,10 +201,28 @@ export type CalibrationDiagnostics = {
   units: string;
 };
 
+export type IncompleteDayReason =
+  | "missing_counts"
+  | "missing_breakdown"
+  | "non_percent_units"
+  | "unsupported_model"
+  | "unsupported_speed"
+  | "zero_counts_conflict"
+  | "no_usable_model_share"
+  | "uncalculable_credits";
+
+export type IncompleteDayDiagnostic = {
+  date: string;
+  reasons: IncompleteDayReason[];
+  unsupportedModels: string[];
+  unsupportedSpeeds: string[];
+};
+
 export type CreditWindowCompleteness = {
   expectedDays: number;
   completeDays: number;
   missingDates: string[];
+  incompleteDays: IncompleteDayDiagnostic[];
   isComplete: boolean;
 };
 
@@ -270,8 +304,8 @@ export async function fetchCodexLimits(): Promise<CodexLimitsResponse> {
   return invoke<CodexLimitsResponse>("fetch_codex_limits");
 }
 
-export async function fetchCodexQuotaForecast(): Promise<CodexQuotaForecastResponse> {
-  return invoke<CodexQuotaForecastResponse>("fetch_codex_quota_forecast");
+export async function fetchCodexResetSignal(): Promise<CodexResetSignalResponse> {
+  return invoke<CodexResetSignalResponse>("fetch_codex_reset_signal");
 }
 
 export async function resetUsageState(): Promise<void> {

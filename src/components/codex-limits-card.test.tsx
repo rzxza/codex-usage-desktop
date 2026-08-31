@@ -157,17 +157,26 @@ describe("CodexLimitsCard component", () => {
           membershipLevel: "plus",
         }}
         error={null}
-        quotaForecast={{
-          score: 73,
-          fetchedAt: "2026-06-25T09:00:19.499Z",
-          nextRefreshAt: "2026-06-25T09:30:19.499Z",
+        resetSignal={{
+          status: "scheduled",
+          kind: "reset_scheduled",
+          confidence: 0.96,
+          announcedAt: null,
+          effectiveAt: "2026-08-30T14:30:00Z",
+          fetchedAt: "2026-08-30T10:00:00Z",
+          plans: [],
+          windows: [],
+          sourceUrl: "https://codexrunway.app/status",
+          rationale: null,
+          text: null,
+          stale: false,
         }}
       />,
     );
 
     const resetArea = screen.getByTestId("reset-area");
     const weeklyLimit = screen.getByTestId("limit-row-weekly");
-    const forecastButton = screen.getByRole("button", { name: "Open Codex quota reset forecast" });
+    const forecastButton = screen.getByRole("button", { name: "Open Codex reset signal source" });
     const creditCount = screen.getByTestId("reset-credit-count");
 
     expect(screen.getByText("5-Hour Limit")).toBeInTheDocument();
@@ -195,12 +204,12 @@ describe("CodexLimitsCard component", () => {
           membershipLevel: "plus",
         }}
         error={null}
-        quotaForecast={null}
+        resetSignal={null}
       />,
     );
 
     expect(screen.getByTestId("reset-credit-count")).toHaveTextContent("2 available");
-    expect(screen.queryByRole("button", { name: "Open Codex quota reset forecast" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Open Codex reset signal source" })).not.toBeInTheDocument();
 
     rerender(
       <CodexLimitsCard
@@ -213,15 +222,24 @@ describe("CodexLimitsCard component", () => {
           membershipLevel: "plus",
         }}
         error={null}
-        quotaForecast={{
-          score: 55,
-          fetchedAt: "2026-06-25T09:00:19.499Z",
-          nextRefreshAt: "2026-06-25T09:30:19.499Z",
+        resetSignal={{
+          status: "likely",
+          kind: "preview",
+          confidence: 0.83,
+          announcedAt: null,
+          effectiveAt: null,
+          fetchedAt: "2026-08-30T10:00:00Z",
+          plans: [],
+          windows: [],
+          sourceUrl: "https://codexrunway.app/status",
+          rationale: null,
+          text: null,
+          stale: false,
         }}
       />,
     );
 
-    expect(screen.getByRole("button", { name: "Open Codex quota reset forecast" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open Codex reset signal source" })).toBeInTheDocument();
     expect(screen.queryByTestId("reset-credit-count")).not.toBeInTheDocument();
   });
 
@@ -407,81 +425,118 @@ describe("CodexLimitsCard component", () => {
     expect(onOpenResetCredits).toHaveBeenCalledTimes(1);
   });
 
-  it("renders a prominent quota forecast badge", () => {
+  it("renders a prominent reset signal card", () => {
     render(
       <CodexLimitsCard onOpenResetCredits={() => {}}
         limits={null}
         error={null}
-        quotaForecast={{
-          score: 73,
-          fetchedAt: "2026-06-25T09:00:19.499Z",
-          nextRefreshAt: "2026-06-25T09:30:19.499Z",
+        resetSignal={{
+          status: "scheduled",
+          kind: "reset_scheduled",
+          confidence: 0.96,
+          announcedAt: null,
+          effectiveAt: "2026-08-30T14:30:00Z",
+          fetchedAt: "2026-08-30T10:00:00Z",
+          plans: [],
+          windows: [],
+          sourceUrl: "https://codexrunway.app/status",
+          rationale: null,
+          text: null,
+          stale: false,
         }}
       />,
     );
 
-    const forecastButton = screen.getByRole("button", { name: "Open Codex quota reset forecast" });
+    const signalButton = screen.getByRole("button", { name: "Open Codex reset signal source" });
 
-    expect(screen.getByRole("img", { name: "73% reset probability" })).toBeInTheDocument();
-    expect(forecastButton).toHaveTextContent("73");
-    expect(forecastButton).toHaveTextContent("Reset likely in 48h");
-    expect(forecastButton).toHaveClass("border-error/30");
+    expect(signalButton).toHaveTextContent("Scheduled");
+    expect(signalButton).toHaveTextContent(dayjs("2026-08-30T14:30:00Z").format("HH:mm"));
+    expect(signalButton).toHaveTextContent("Signal confidence 96%");
+    expect(signalButton).toHaveTextContent("Non-official monitor");
+    expect(signalButton).toHaveClass("border-warning/35");
   });
 
-  it("changes quota forecast color by probability", () => {
+  it("changes reset signal color by status", () => {
     const { rerender } = render(
       <CodexLimitsCard onOpenResetCredits={() => {}}
         limits={null}
         error={null}
-        quotaForecast={{
-          score: 18,
-          fetchedAt: "2026-06-25T09:00:19.499Z",
-          nextRefreshAt: "2026-06-25T09:30:19.499Z",
+        resetSignal={{
+          status: "completed",
+          kind: "reset_completed",
+          confidence: 0.99,
+          announcedAt: null,
+          effectiveAt: "2026-08-30T08:35:00Z",
+          fetchedAt: "2026-08-30T10:00:00Z",
+          plans: [],
+          windows: [],
+          sourceUrl: "https://codexrunway.app/status",
+          rationale: null,
+          text: null,
+          stale: false,
         }}
       />,
     );
 
-    expect(screen.getByRole("button", { name: "Open Codex quota reset forecast" })).toHaveClass("border-success/30");
+    expect(screen.getByRole("button", { name: "Open Codex reset signal source" })).toHaveClass("border-success/30");
 
     rerender(
       <CodexLimitsCard onOpenResetCredits={() => {}}
         limits={null}
         error={null}
-        quotaForecast={{
-          score: 55,
-          fetchedAt: "2026-06-25T09:00:19.499Z",
-          nextRefreshAt: "2026-06-25T09:30:19.499Z",
+        resetSignal={{
+          status: "likely",
+          kind: "preview",
+          confidence: 0.83,
+          announcedAt: null,
+          effectiveAt: null,
+          fetchedAt: "2026-08-30T10:00:00Z",
+          plans: [],
+          windows: [],
+          sourceUrl: "https://codexrunway.app/status",
+          rationale: null,
+          text: null,
+          stale: false,
         }}
       />,
     );
 
-    expect(screen.getByRole("button", { name: "Open Codex quota reset forecast" })).toHaveClass("border-warning/35");
+    expect(screen.getByRole("button", { name: "Open Codex reset signal source" })).toHaveClass("border-error/30");
   });
 
-  it("opens the quota forecast URL from the forecast badge", () => {
-    const onOpenQuotaForecast = vi.fn();
+  it("opens the reset signal URL from the signal card", () => {
+    const onOpenResetSignal = vi.fn();
 
     render(
       <CodexLimitsCard onOpenResetCredits={() => {}}
         limits={null}
         error={null}
-        quotaForecast={{
-          score: 55,
-          fetchedAt: "2026-06-25T09:00:19.499Z",
-          nextRefreshAt: "2026-06-25T09:30:19.499Z",
+        resetSignal={{
+          status: "likely",
+          kind: "preview",
+          confidence: 0.83,
+          announcedAt: null,
+          effectiveAt: null,
+          fetchedAt: "2026-08-30T10:00:00Z",
+          plans: [],
+          windows: [],
+          sourceUrl: "https://codexrunway.app/status",
+          rationale: null,
+          text: null,
+          stale: false,
         }}
-        onOpenQuotaForecast={onOpenQuotaForecast}
+        onOpenResetSignal={onOpenResetSignal}
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Open Codex quota reset forecast" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open Codex reset signal source" }));
 
-    expect(onOpenQuotaForecast).toHaveBeenCalledTimes(1);
+    expect(onOpenResetSignal).toHaveBeenCalledTimes(1);
   });
 
-  it("does not render the quota forecast pill without forecast data", () => {
-    render(<CodexLimitsCard onOpenResetCredits={() => {}} limits={null} error={null} quotaForecast={null} />);
+  it("does not render the reset signal card without signal data", () => {
+    render(<CodexLimitsCard onOpenResetCredits={() => {}} limits={null} error={null} resetSignal={null} />);
 
-    expect(screen.queryByRole("button", { name: "Open Codex quota reset forecast" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Open Codex reset signal source" })).not.toBeInTheDocument();
   });
 });

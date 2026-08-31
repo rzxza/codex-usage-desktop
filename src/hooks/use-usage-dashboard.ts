@@ -6,13 +6,13 @@ import { useTranslation } from "react-i18next";
 import {
   exportUsage,
   fetchCodexLimits,
-  fetchCodexQuotaForecast,
+  fetchCodexResetSignal,
   fetchServerCreditAnalytics,
   fetchMonthlyUsage,
   fetchOverview,
   resetUsageState,
   type CodexLimitsResponse,
-  type CodexQuotaForecastResponse,
+  type CodexResetSignalResponse,
   type ServerCreditAnalyticsResponse,
   type ExportFormat,
   type MonthlyUsageResponse,
@@ -55,7 +55,7 @@ const AUTO_RESCAN_MS = 5 * 60_000;
 const UPDATES_ENABLED = false;
 const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60_000;
 const UPDATE_CHECK_RETRY_MS = 60 * 60_000;
-const CODEX_QUOTA_FORECAST_URL = "https://www.willcodexquotareset.com/";
+const CODEX_RUNWAY_STATUS_URL = "https://codexrunway.app/status";
 const CHATGPT_USAGE_URL = "https://chatgpt.com/#settings/Usage";
 
 function formatCompactResetCountdown(resetsAt: string | null): string | null {
@@ -133,7 +133,7 @@ export function useUsageDashboard() {
   const [monthlyUsage, setMonthlyUsage] = useState<MonthlyUsageResponse | null>(null);
   const [codexLimits, setCodexLimits] = useState<CodexLimitsResponse | null>(null);
   const [codexLimitsError, setCodexLimitsError] = useState<string | null>(null);
-  const [codexQuotaForecast, setCodexQuotaForecast] = useState<CodexQuotaForecastResponse | null>(null);
+  const [codexResetSignal, setCodexResetSignal] = useState<CodexResetSignalResponse | null>(null);
   const [serverAnalytics, setServerAnalytics] = useState<ServerCreditAnalyticsResponse | null>(null);
   const [serverAnalyticsError, setServerAnalyticsError] = useState<string | null>(null);
   const [isServerAnalyticsLoading, setIsServerAnalyticsLoading] = useState(false);
@@ -295,12 +295,12 @@ export function useUsageDashboard() {
     }
   });
 
-  const loadCodexQuotaForecast = useEffectEvent(async () => {
+  const loadCodexResetSignal = useEffectEvent(async () => {
     try {
-      const data = await fetchCodexQuotaForecast();
-      setCodexQuotaForecast(data);
+      const data = await fetchCodexResetSignal();
+      setCodexResetSignal(data);
     } catch (_) {
-      setCodexQuotaForecast(null);
+      setCodexResetSignal(null);
     }
   });
   const loadServerCreditAnalytics = useEffectEvent(async (forceRefresh = false) => {
@@ -521,7 +521,7 @@ export function useUsageDashboard() {
     try {
       // Do not block initial render on limits fetch
       void loadCodexLimits();
-      void loadCodexQuotaForecast();
+      void loadCodexResetSignal();
       void loadServerCreditAnalytics();
       await loadOverview(range);
       setBootstrapped(true);
@@ -766,7 +766,7 @@ export function useUsageDashboard() {
       }
     }
 
-    items.push({ id: "toggle_compact", text: t("compact.toggle_tray"), enabled: true });
+    items.push({ id: "show_compact", text: t("compact.show_tray"), enabled: true });
 
     void updateTray({
       title,
@@ -837,7 +837,7 @@ export function useUsageDashboard() {
 
     try {
       await scanAndReloadOverview(startedAt, { force: true });
-      await loadCodexQuotaForecast();
+      await loadCodexResetSignal();
       await loadServerCreditAnalytics(true);
     } catch (refreshError) {
       setError(refreshError instanceof Error ? refreshError.message : "Refresh failed.");
@@ -975,11 +975,11 @@ export function useUsageDashboard() {
     }
   };
 
-  const handleOpenCodexQuotaForecast = async () => {
+  const handleOpenCodexResetSignal = async () => {
     try {
-      await openUrl(CODEX_QUOTA_FORECAST_URL);
+      await openUrl(codexResetSignal?.sourceUrl ?? CODEX_RUNWAY_STATUS_URL);
     } catch (e) {
-      console.error("Failed to open Codex quota forecast URL", e);
+      console.error("Failed to open Codex reset signal URL", e);
     }
   };
 
@@ -998,7 +998,7 @@ export function useUsageDashboard() {
     monthlyUsage,
     codexLimits,
     codexLimitsError,
-    codexQuotaForecast,
+    codexResetSignal,
     serverAnalytics,
     serverAnalyticsError,
     isServerAnalyticsLoading,
@@ -1033,7 +1033,7 @@ export function useUsageDashboard() {
     handleManualUpdateCheck,
     handleUpgrade,
     handleOpenUpdateRelease,
-    handleOpenCodexQuotaForecast,
+    handleOpenCodexResetSignal,
     handleOpenResetCredits,
     handleLaunchAtLoginChange,
     trayTitleShow,

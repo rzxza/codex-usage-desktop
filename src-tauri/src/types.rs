@@ -245,10 +245,28 @@ pub struct CodexLimitsResponse {
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct CodexQuotaForecastResponse {
-    pub score: i64,
+pub struct CodexResetSignalWindow {
+    pub label: Option<String>,
+    pub starts_at: Option<String>,
+    pub ends_at: Option<String>,
+    pub confidence: Option<f64>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CodexResetSignalResponse {
+    pub status: String,
+    pub kind: Option<String>,
+    pub confidence: Option<f64>,
+    pub announced_at: Option<String>,
+    pub effective_at: Option<String>,
     pub fetched_at: String,
-    pub next_refresh_at: String,
+    pub plans: Vec<String>,
+    pub windows: Vec<CodexResetSignalWindow>,
+    pub source_url: String,
+    pub rationale: Option<String>,
+    pub text: Option<String>,
+    pub stale: bool,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -520,12 +538,35 @@ pub struct CreditAggregate {
     pub models: Vec<ModelCreditUsage>,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum IncompleteDayReason {
+    MissingCounts,
+    MissingBreakdown,
+    NonPercentUnits,
+    UnsupportedModel,
+    UnsupportedSpeed,
+    ZeroCountsConflict,
+    NoUsableModelShare,
+    UncalculableCredits,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct IncompleteDayDiagnostic {
+    pub date: String,
+    pub reasons: Vec<IncompleteDayReason>,
+    pub unsupported_models: Vec<String>,
+    pub unsupported_speeds: Vec<String>,
+}
+
 #[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct CreditWindowCompleteness {
     pub expected_days: u32,
     pub complete_days: u32,
     pub missing_dates: Vec<String>,
+    pub incomplete_days: Vec<IncompleteDayDiagnostic>,
     pub is_complete: bool,
 }
 
