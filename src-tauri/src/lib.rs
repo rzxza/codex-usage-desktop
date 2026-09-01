@@ -4,6 +4,7 @@ mod credit_analytics;
 mod credit_rates;
 mod date;
 mod db;
+mod eink_ble;
 mod exporter;
 mod overview;
 mod pricing;

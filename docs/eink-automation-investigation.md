@@ -56,6 +56,6 @@ The application directly communicates with the DA14585 E-Ink tag over Bluetooth 
 
 - **Option A (Vendor App Automation)**: **UNSUPPORTED**  
   `qbsg.exe` provides no CLI flags, no local IPC, and no folder watcher. Attempting to automate the vendor GUI via UI automation (Win32 accessibility/clicks) is brittle and violates reliability principles.
-- **Option B (Direct BLE Transport / Standalone Exporter)**: **RECOMMENDED & IMPLEMENTED**  
+- **Option B (Direct BLE Transport / Standalone Exporter)**: **RECOMMENDED & TRANSPORT SCAFFOLDED**  
   1. **Primary Working Path**: Standalone high-density 400x300 PNG Export + "签变时光" manual upload (stable, reliable, preserves all existing capabilities).
   2. **Automated Path**: Native BLE transport (`Da14585BleTransport` / `PingpingBleTransport`) communicating directly with GATT `0x1F10` / `0x1F1F`.

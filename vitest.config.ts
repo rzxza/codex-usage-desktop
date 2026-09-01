@@ -12,12 +12,7 @@ export default defineConfig({
   test: {
     setupFiles: ["./src/test/setup.ts"],
     testTimeout: 20000,
-    pool: "threads",
-    poolOptions: {
-      threads: {
-        singleThread: true,
-      },
-    },
+    fileParallelism: false,
     coverage: {
       reporter: ["text", "html"],
     },

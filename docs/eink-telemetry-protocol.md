@@ -44,14 +44,14 @@ For the 4.2-inch $400 \times 300$ tri-color panel ($120,000$ pixels):
 
 We comprehensively searched the entire vendor codebase (`composeApp-jvm.jar`) for Battery Service (`0x180F`), Battery Level (`0x2A19`), Temperature Service (`0x1809`), and custom ADC read commands.
 
-### 3.1 Battery Status: **UNSUPPORTED**
+### 3.1 Battery Status: **HOST-READABLE TELEMETRY UNVERIFIED**
 - The `PP_da14585_4.2` firmware is an ultra-low power passive display receiver.
 - Neither standard Battery Service `0x180F` nor vendor battery telemetry commands exist in the firmware or client code.
-- **Classification**: `unsupported`.
+- **Classification**: `HOST-READABLE TELEMETRY UNVERIFIED`.
 
-### 3.2 Temperature Status: **UNSUPPORTED**
+### 3.2 Temperature Status: **HOST-READABLE TELEMETRY UNVERIFIED**
 - The tag does not integrate a digital thermometer or environmental sensing characteristic over GATT.
-- **Classification**: `unsupported`.
+- **Classification**: `HOST-READABLE TELEMETRY UNVERIFIED`.
 
 ---
 
