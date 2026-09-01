@@ -10,6 +10,7 @@ import { ProjectUsageCard } from "@/components/project-usage-card";
 import { SettingsPage } from "@/components/settings-page";
 import { SessionUsageTable } from "@/components/session-usage-table";
 import { SessionDetailModal } from "@/components/session-detail-modal";
+import { ServerUsageCard } from "@/components/server-usage-card";
 import { ProjectSessionsModal } from "@/components/project-sessions-modal";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { RangeSwitcher } from "@/components/range-switcher";
@@ -40,7 +41,10 @@ export default function App() {
     monthlyUsage,
     codexLimits,
     codexLimitsError,
-    codexQuotaForecast,
+    codexResetSignal,
+    serverAnalytics,
+    serverAnalyticsError,
+    isServerAnalyticsLoading,
     scanMessage,
     error,
     isLoading,
@@ -72,7 +76,7 @@ export default function App() {
     handleManualUpdateCheck,
     handleUpgrade,
     handleOpenUpdateRelease,
-    handleOpenCodexQuotaForecast,
+    handleOpenCodexResetSignal,
     handleOpenResetCredits,
     handleLaunchAtLoginChange,
     trayTitleShow,
@@ -310,9 +314,17 @@ export default function App() {
                 <CodexLimitsCard
                   limits={codexLimits}
                   error={codexLimitsError}
-                  quotaForecast={codexQuotaForecast}
-                  onOpenQuotaForecast={() => void handleOpenCodexQuotaForecast()}
+                  resetSignal={codexResetSignal}
+                  onOpenResetSignal={() => void handleOpenCodexResetSignal()}
                   onOpenResetCredits={() => void handleOpenResetCredits()}
+                />
+              </div>
+
+              <div className="min-w-0">
+                <ServerUsageCard
+                  analytics={serverAnalytics}
+                  error={serverAnalyticsError}
+                  isLoading={isServerAnalyticsLoading}
                 />
               </div>
             </div>
@@ -409,6 +421,8 @@ export default function App() {
               trayMenuShow={trayMenuShow}
               onTrayMenuShowChange={handleTrayMenuShowChange}
               codexLimits={codexLimits}
+              serverAnalytics={serverAnalytics}
+              codexResetSignal={codexResetSignal}
             />
           ) : null}
 

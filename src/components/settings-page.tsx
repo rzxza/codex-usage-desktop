@@ -1,10 +1,17 @@
 import { RotateCcw, Sparkles, RefreshCw, CheckCircle, ArrowUpRight, RotateCw, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import type { UpdateCheckResponse, CodexLimitsResponse } from "@/lib/api";
+import type {
+  UpdateCheckResponse,
+  CodexLimitsResponse,
+  CodexResetSignalResponse,
+  ServerCreditAnalyticsResponse,
+} from "@/lib/api";
+import { EinkPanel } from "./eink-panel";
 import type { UpdateInstallStatus, UpdateProgressState } from "@/hooks/use-usage-dashboard";
 import { hasSubscription } from "./codex-limits-card";
 import tauriConfig from "../../src-tauri/tauri.conf.json";
+import { UPDATES_ENABLED } from "@/lib/constants";
 import { useTranslation } from "react-i18next";
 import { useMemo, useState } from "react";
 import {
@@ -39,6 +46,8 @@ type SettingsPageProps = {
   trayMenuShow: { limit5h: boolean; limitWeekly: boolean; tokens: boolean; cost: boolean };
   onTrayMenuShowChange: (key: "limit5h" | "limitWeekly" | "tokens" | "cost", value: boolean) => void;
   codexLimits: CodexLimitsResponse | null;
+  serverAnalytics: ServerCreditAnalyticsResponse | null;
+  codexResetSignal: CodexResetSignalResponse | null;
 };
 
 const TRAY_OPTION_KEYS = {
@@ -76,8 +85,33 @@ export function SettingsPage({
   trayMenuShow,
   onTrayMenuShowChange,
   codexLimits,
+  serverAnalytics,
+  codexResetSignal,
 }: SettingsPageProps) {
   const { t, i18n } = useTranslation();
+  const readCompactFlag = (key: string) => {
+    try {
+      return localStorage.getItem(key) === "1";
+    } catch (_) {
+      return false;
+    }
+  };
+  const [compactAutoStart, setCompactAutoStart] = useState(() => readCompactFlag("compact_autostart"));
+  // Missing key means default-on, matching window config and compact init.
+  const [compactAlwaysOnTop, setCompactAlwaysOnTop] = useState(
+    () => readCompactFlag("compact_always_on_top") || localStorage.getItem("compact_always_on_top") === null,
+  );
+  const persistCompactFlag = (key: string, value: boolean) => {
+    try {
+      localStorage.setItem(key, value ? "1" : "0");
+    } catch (_) {
+      // Storage may be unavailable; the flag applies for this session only.
+    }
+    if (key === "compact_autostart") setCompactAutoStart(value);
+    if (key === "compact_always_on_top") setCompactAlwaysOnTop(value);
+    void import("@tauri-apps/api/event").then(({ emit }) => emit("compact-settings-changed"));
+  };
+
   const [activeSection, setActiveSection] = useState<SettingsSection>("general");
   const isRateLimitError = !!(
     updateInfo?.releaseNotes?.includes("GitHub API rate limit exceeded") ||
@@ -250,6 +284,39 @@ export function SettingsPage({
           </div>
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">{t("settings.compact_title")}</CardTitle>
+          <CardDescription>{t("settings.compact_desc")}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <label className="flex items-center justify-between gap-4 rounded-lg border border-border/60 p-3">
+            <span>
+              <span className="block text-sm font-medium text-foreground">{t("settings.compact_autostart")}</span>
+              <span className="block text-xs text-muted-foreground">{t("settings.compact_autostart_desc")}</span>
+            </span>
+            <input
+              type="checkbox"
+              className="h-4 w-4 accent-indigo-500"
+              checked={compactAutoStart}
+              onChange={(event) => persistCompactFlag("compact_autostart", event.target.checked)}
+            />
+          </label>
+          <label className="flex items-center justify-between gap-4 rounded-lg border border-border/60 p-3">
+            <span>
+              <span className="block text-sm font-medium text-foreground">{t("settings.compact_always_on_top")}</span>
+              <span className="block text-xs text-muted-foreground">{t("settings.compact_always_on_top_desc")}</span>
+            </span>
+            <input
+              type="checkbox"
+              className="h-4 w-4 accent-indigo-500"
+              checked={compactAlwaysOnTop}
+              onChange={(event) => persistCompactFlag("compact_always_on_top", event.target.checked)}
+            />
+          </label>
+        </CardContent>
+      </Card>
     </>
   );
 
@@ -337,13 +404,16 @@ export function SettingsPage({
                 <p className="text-sm text-muted-foreground">
                   v{updateInfo?.currentVersion || tauriConfig.version}
                 </p>
+                {!UPDATES_ENABLED ? (
+                  <p className="text-xs text-muted-foreground">{t("settings.updates_disabled")}</p>
+                ) : null}
               </div>
               <div className="flex flex-col items-end gap-2">
                 <Button 
                   variant="secondary" 
                   size="lg" 
                   onClick={onCheckUpdates} 
-                  disabled={isDisabled || isUpdateChecking}
+                  disabled={isDisabled || isUpdateChecking || !UPDATES_ENABLED}
                 >
                   <RefreshCw className={`h-4 w-4 ${isUpdateChecking ? "animate-spin" : ""}`} />
                   {isUpdateChecking ? t("settings.btn_checking") : t("settings.btn_check_updates")}
@@ -438,6 +508,12 @@ export function SettingsPage({
           </div>
         </CardContent>
       </Card>
+
+      <EinkPanel
+        limits={codexLimits}
+        analytics={serverAnalytics}
+        resetSignal={codexResetSignal}
+      />
     </>
   );
 

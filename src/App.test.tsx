@@ -24,7 +24,7 @@ vi.mock("@tauri-apps/api/core", () => ({
       updateTrayMock(...args);
       return Promise.resolve();
     }
-    if (command === "fetch_codex_quota_forecast") {
+    if (command === "fetch_codex_reset_signal") {
       return forecastInvokeMock();
     }
     if (command === "refresh_usage_data") {
@@ -154,6 +154,64 @@ function limits(remainingPercent = 80, resetsAt = "2026-06-11T05:00:00.000Z") {
   };
 }
 
+function resetSignalFixture(overrides: Record<string, unknown> = {}) {
+  return {
+    status: "scheduled",
+    kind: "reset_scheduled",
+    confidence: 0.92,
+    announcedAt: null,
+    effectiveAt: "2026-06-12T14:30:00Z",
+    fetchedAt: "2026-06-11T00:00:00.000Z",
+    plans: [],
+    windows: [],
+    sourceUrl: "https://www.codexrunway.com/status",
+    rationale: null,
+    text: null,
+    stale: false,
+    ...overrides,
+  };
+}
+
+function serverAnalyticsFixture(sevenDayCredits: number | null = null) {
+  return {
+    fetchedAt: "2026-04-26T00:00:00.000Z",
+    startDate: "2026-03-28",
+    endDate: "2026-04-26",
+    status: "invalid",
+    calibration: { k: null, sampleCount: 0, deviation: null, maxDeviation: null, status: "invalid" },
+    latestCompleteDate: null,
+    latestCompleteDay: null,
+    last7CompleteDays: {
+      startDate: "2026-03-21",
+      endDate: "2026-03-27",
+      credits: sevenDayCredits,
+      models: [],
+      completeness: { expectedDays: 7, completeDays: 7, missingDates: [], incompleteDays: [], isComplete: true },
+    },
+    previous7CompleteDays: {
+      startDate: "2026-03-14",
+      endDate: "2026-03-20",
+      credits: null,
+      models: [],
+      completeness: { expectedDays: 7, completeDays: 7, missingDates: [], incompleteDays: [], isComplete: true },
+    },
+    last30CompleteDays: {
+      startDate: "2026-02-26",
+      endDate: "2026-03-27",
+      credits: null,
+      models: [],
+      completeness: { expectedDays: 30, completeDays: 30, missingDates: [], incompleteDays: [], isComplete: true },
+    },
+    sevenDayDeltaPercent: null,
+    sevenDaySeries: [],
+    today: null,
+    last7Days: { credits: null, models: [] },
+    last30Days: { credits: null, models: [] },
+    daily: [],
+    models: [],
+  };
+}
+
 function setPageActive(active: boolean) {
   Object.defineProperty(document, "visibilityState", {
     configurable: true,
@@ -189,7 +247,7 @@ describe("App", () => {
     localStorage.clear();
     invokeMock.mockReset();
     forecastInvokeMock.mockReset();
-    forecastInvokeMock.mockRejectedValue(new Error("Forecast unavailable"));
+    forecastInvokeMock.mockRejectedValue(new Error("Reset signal unavailable"));
     saveMock.mockReset();
     autostartEnableMock.mockReset();
     autostartEnableMock.mockResolvedValue(undefined);
@@ -265,7 +323,9 @@ describe("App", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1);
     });
-    expect(invokeMock).toHaveBeenCalledWith("check_for_updates");
+    expect(invokeMock).not.toHaveBeenCalledWith("check_for_updates");
+    expect(localStorage.getItem("last_update_check_result")).toBeNull();
+    expect(localStorage.getItem("last_update_check_time")).toBeNull();
   });
 
   it("prevents the default page context menu", () => {
@@ -422,11 +482,20 @@ describe("App", () => {
     });
   });
 
-  it("opens the external quota forecast when the forecast badge is clicked", async () => {
+  it("opens the external reset signal source when the signal card is clicked", async () => {
     forecastInvokeMock.mockResolvedValue({
-      score: 73,
-      fetchedAt: "2026-06-25T09:00:19.499Z",
-      nextRefreshAt: "2026-06-25T09:30:19.499Z",
+      status: "scheduled",
+      kind: "reset_scheduled",
+      confidence: 0.96,
+      announcedAt: null,
+      effectiveAt: "2026-08-30T14:30:00Z",
+      fetchedAt: "2026-08-30T10:00:00Z",
+      plans: [],
+      windows: [],
+      sourceUrl: "https://www.codexrunway.com/status",
+      rationale: null,
+      text: null,
+      stale: false,
     });
 
     invokeMock.mockImplementation(async (command: string, args?: { range?: string; url?: string }) => {
@@ -450,9 +519,9 @@ describe("App", () => {
 
     render(<App />);
 
-    await userEvent.click(await screen.findByRole("button", { name: "Open Codex quota reset forecast" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Open Codex reset signal source" }));
 
-    expect(invokeMock).toHaveBeenCalledWith("open_url", { url: "https://www.willcodexquotareset.com/" });
+    expect(invokeMock).toHaveBeenCalledWith("open_url", { url: "https://www.codexrunway.com/status" });
   });
 
   it("opens ChatGPT Usage when reset credits are clicked", async () => {
@@ -1582,6 +1651,52 @@ describe("App", () => {
         };
       }
 
+      if (command === "fetch_server_credit_analytics") {
+        return {
+          fetchedAt: "2026-04-26T00:00:00.000Z",
+          startDate: "2026-03-28",
+          endDate: "2026-04-26",
+          status: "invalid",
+          calibration: {
+            k: null,
+            sampleCount: 0,
+            deviation: null,
+            maxDeviation: null,
+            status: "invalid",
+          },
+          latestCompleteDate: null,
+          latestCompleteDay: null,
+          last7CompleteDays: {
+            startDate: "2026-03-21",
+            endDate: "2026-03-27",
+            credits: null,
+            models: [],
+            completeness: { expectedDays: 7, completeDays: 0, missingDates: [], incompleteDays: [], isComplete: false },
+          },
+          previous7CompleteDays: {
+            startDate: "2026-03-14",
+            endDate: "2026-03-20",
+            credits: null,
+            models: [],
+            completeness: { expectedDays: 7, completeDays: 0, missingDates: [], incompleteDays: [], isComplete: false },
+          },
+          last30CompleteDays: {
+            startDate: "2026-02-26",
+            endDate: "2026-03-27",
+            credits: null,
+            models: [],
+            completeness: { expectedDays: 30, completeDays: 0, missingDates: [], incompleteDays: [], isComplete: false },
+          },
+          sevenDayDeltaPercent: null,
+          sevenDaySeries: [],
+          today: null,
+          last7Days: { credits: null, models: [] },
+          last30Days: { credits: null, models: [] },
+          daily: [],
+          models: [],
+        };
+      }
+
       throw new Error(`Unexpected invoke: ${command}`);
     });
 
@@ -1595,9 +1710,9 @@ describe("App", () => {
 
     await waitFor(() => expect(invokeMock).toHaveBeenCalledTimes(5));
     expect(invokeMock).toHaveBeenNthCalledWith(1, "fetch_codex_limits");
-    expect(invokeMock).toHaveBeenNthCalledWith(2, "fetch_overview", { range: "30d" });
-    expect(invokeMock).toHaveBeenNthCalledWith(3, "scan_usage");
-    expect(invokeMock).toHaveBeenNthCalledWith(4, "check_for_updates");
+    expect(invokeMock).toHaveBeenNthCalledWith(2, "fetch_server_credit_analytics", { forceRefresh: false });
+    expect(invokeMock).toHaveBeenNthCalledWith(3, "fetch_overview", { range: "30d" });
+    expect(invokeMock).toHaveBeenNthCalledWith(4, "scan_usage");
     expect(invokeMock).toHaveBeenNthCalledWith(5, "fetch_overview", { range: "30d" });
   });
 
@@ -1724,17 +1839,16 @@ describe("App", () => {
     await waitFor(() => {
       expect(updateTrayMock).toHaveBeenCalledWith(expect.objectContaining({
         payload: expect.objectContaining({
-          title: "5h: 80%/3h | W: 55%/4d",
+          title: "Q: 55%/4d",
           items: expect.arrayContaining([
-            expect.objectContaining({ id: "status_5h", text: expect.stringContaining("3 hours left") }),
-            expect.objectContaining({ id: "status_weekly", text: expect.stringContaining("4 days left") }),
+            expect.objectContaining({ id: "status_primary_quota", text: expect.stringContaining("4 days left") }),
           ]),
         }),
       }));
     });
   });
 
-  it("defaults the tray title to 5-hour and weekly limits", async () => {
+  it("defaults the tray title to the primary quota", async () => {
     const now = new Date().getTime();
     vi.spyOn(Date, "now").mockReturnValue(now);
     const sessionReset = new Date(now + 3 * 60 * 60_000).toISOString();
@@ -1767,7 +1881,7 @@ describe("App", () => {
     await waitFor(() => {
       expect(updateTrayMock).toHaveBeenCalledWith(expect.objectContaining({
         payload: expect.objectContaining({
-          title: "5h: 80%/3h | W: 55%/4d",
+          title: "Q: 55%/4d",
         }),
       }));
     });
@@ -1819,9 +1933,9 @@ describe("App", () => {
       expect(invokeMock.mock.calls.filter(([command]) => command === "fetch_codex_limits")).toHaveLength(2);
       expect(updateTrayMock).toHaveBeenCalledWith(expect.objectContaining({
         payload: expect.objectContaining({
-          title: "5h: 100%/soon",
+          title: "Q: 100%/soon",
           items: expect.arrayContaining([
-            expect.objectContaining({ id: "status_5h", text: expect.stringContaining("100%") }),
+            expect.objectContaining({ id: "status_primary_quota", text: expect.stringContaining("100%") }),
           ]),
         }),
       }));
@@ -2093,13 +2207,12 @@ describe("App", () => {
     expect(invokeMock).not.toHaveBeenCalledWith("export_usage", expect.anything());
   });
 
-  it("dismisses the main update banner and shows the eye-catching upgrade button in the header", async () => {
+  it("does not show the update banner when updates are disabled", async () => {
     localStorage.clear();
     invokeMock.mockImplementation(async (command: string, args?: { range?: string; url?: string }) => {
       if (command === "scan_usage") {
         return { importedDays: 3, scannedAt: "2026-04-26T00:00:00.000Z", timezone: "UTC" };
       }
-
       if (command === "fetch_codex_limits") {
         return {
           session: { usedPercent: 20, remainingPercent: 80, windowMinutes: 300, resetsAt: "2026-04-26T05:00:00.000Z" },
@@ -2108,7 +2221,6 @@ describe("App", () => {
           source: "cli-rpc",
         };
       }
-
       if (command === "fetch_overview" && args?.range === "30d") {
         return {
           range: "30d",
@@ -2118,126 +2230,51 @@ describe("App", () => {
           endDate: "2026-04-26",
           updatedAt: "2026-04-26T00:00:00.000Z",
           daily: [],
-          totals: {
-            inputTokens: 2600,
-            cachedInputTokens: 400,
-            outputTokens: 800,
-            totalTokens: 3400,
-            costUSD: 0.0088685,
-            avgTokensPerDay: 113.3333333,
-            avgCostPerDay: 0.0002956,
-            cacheHitRate: 0.1538,
-            costPerMillionTokens: 2.6083,
-          },
+          totals: { inputTokens: 2600, cachedInputTokens: 400, outputTokens: 800, totalTokens: 3400, costUSD: 0.0088685, avgTokensPerDay: 113.3333333, avgCostPerDay: 0.0002956, cacheHitRate: 0.1538, costPerMillionTokens: 2.6083 },
           models: [],
           projects: [],
         };
       }
-
-      if (command === "check_for_updates") {
-        return {
-          hasUpdate: true,
-          currentVersion: "0.4.0",
-          latestVersion: "0.5.0",
-          latestTag: "v0.5.0",
-          releaseName: "Big Release",
-          releaseNotes: "Feature details",
-          releaseUrl: "https://github.com/test/release",
-        };
-      }
-
-      if (command === "download_and_install_update") {
-        return { version: "0.5.0" };
-      }
-
-      if (command === "restart_app") {
-        return null;
-      }
-
       throw new Error(`Unexpected invoke: ${command}`);
     });
 
     render(<App />);
-
-    // Wait for the main update banner to be displayed
-    await waitFor(() => expect(screen.getByText("New update available: v0.5.0")).toBeInTheDocument());
-
-    // Click the X button to dismiss the banner
-    const dismissButton = screen.getByRole("button", { name: "Dismiss update notification" });
-    await userEvent.click(dismissButton);
-
-    // Main update banner should disappear
-    expect(screen.queryByText("New update available: v0.5.0")).not.toBeInTheDocument();
-
-    // Check that the persistent dismiss tag was stored in localStorage
-    expect(localStorage.getItem("dismissed_update_tag")).toBe("v0.5.0");
-
-    // The small upgrade button in the header next to CODEX USAGE DESKTOP should appear
-    const headerUpgradeButton = screen.getByRole("button", { name: "Upgrade v0.5.0" });
-    expect(headerUpgradeButton).toBeInTheDocument();
-
-    // Click the header upgrade button to download and install the update
-    await userEvent.click(headerUpgradeButton);
-    expect(invokeMock).toHaveBeenCalledWith("download_and_install_update");
-
-    const restartButton = await screen.findByRole("button", { name: "Restart to update" });
-    await userEvent.click(restartButton);
-    expect(invokeMock).toHaveBeenCalledWith("restart_app");
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Settings" })).toBeInTheDocument());
+    expect(screen.queryByText(/New update available/i)).not.toBeInTheDocument();
+    expect(invokeMock).not.toHaveBeenCalledWith("check_for_updates");
+    expect(invokeMock).not.toHaveBeenCalledWith("download_and_install_update");
+    expect(localStorage.getItem("dismissed_update_tag")).toBeNull();
   });
 
-  it("shows download progress while installing an update", async () => {
-    let finishDownload = (_value: { version: string }) => {};
-
-    invokeMock.mockImplementation(async (command: string, args?: { range?: string }) => {
+  it("does not expose the update download path when updates are disabled", async () => {
+    invokeMock.mockImplementation(async (command: string) => {
       if (command === "scan_usage") {
         return { importedDays: 3, scannedAt: "2026-04-26T00:00:00.000Z", timezone: "UTC" };
       }
-
       if (command === "fetch_codex_limits") {
         throw new Error("limits unavailable");
       }
-
       if (command === "fetch_overview") {
-        return overview();
-      }
-
-      if (command === "check_for_updates") {
         return {
-          hasUpdate: true,
-          currentVersion: "0.4.0",
-          latestVersion: "0.5.0",
-          latestTag: "v0.5.0",
-          releaseName: "Big Release",
-          releaseNotes: "Feature details",
-          releaseUrl: "https://github.com/test/release",
+          range: "30d",
+          days: 30,
+          timezone: "UTC",
+          startDate: "2026-03-28",
+          endDate: "2026-04-26",
+          updatedAt: "2026-04-26T00:00:00.000Z",
+          daily: [],
+          totals: { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, totalTokens: 0, costUSD: 0, avgTokensPerDay: 0, avgCostPerDay: 0, cacheHitRate: 0, costPerMillionTokens: 0 },
+          models: [],
+          projects: [],
         };
       }
-
-      if (command === "download_and_install_update") {
-        return new Promise((resolve) => {
-          finishDownload = resolve;
-        });
-      }
-
       throw new Error(`Unexpected invoke: ${command}`);
     });
 
     render(<App />);
-
-    await waitFor(() => expect(screen.getByText("New update available: v0.5.0")).toBeInTheDocument());
-    await waitFor(() => expect(eventListeners.get("update-download-progress")?.length).toBeGreaterThan(0));
-
-    await userEvent.click(screen.getByRole("button", { name: "Upgrade Now" }));
-
-    eventListeners.get("update-download-progress")?.forEach((listener) => {
-      listener({ payload: { downloaded: 50, total: 100, finished: false } });
-    });
-
-    expect(await screen.findByRole("button", { name: "Downloading 50%" })).toBeDisabled();
-    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "50");
-
-    finishDownload({ version: "0.5.0" });
-    expect(await screen.findByRole("button", { name: "Restart to Update" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Settings" })).toBeInTheDocument());
+    expect(screen.queryByText(/New update available/i)).not.toBeInTheDocument();
+    expect(invokeMock).not.toHaveBeenCalledWith("download_and_install_update");
   });
 
   it("defaults to hiding the Logs tab, and shows it when toggled in Settings", async () => {
@@ -2477,9 +2514,123 @@ describe("App", () => {
     // The update banner should NOT be in the document
     expect(screen.queryByText(/New update available/i)).not.toBeInTheDocument();
     
-    // Check that the cached result in localStorage was corrected to hasUpdate = false
-    const parsedCache = JSON.parse(localStorage.getItem("last_update_check_result") || "{}");
-    expect(parsedCache.hasUpdate).toBe(false);
-    expect(parsedCache.currentVersion).toBe(tauriConfig.version);
+    // Updates are disabled: cached update state must be cleared entirely.
+    expect(localStorage.getItem("last_update_check_result")).toBeNull();
+    expect(localStorage.getItem("last_update_check_time")).toBeNull();
+  });
+
+  it("reset signal refresh respects ttl", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-11T00:00:00.000Z"));
+    let fetchCount = 0;
+    forecastInvokeMock.mockImplementation(async () => {
+      fetchCount += 1;
+      return resetSignalFixture();
+    });
+    mockLoadedDashboard();
+    render(<App />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(fetchCount).toBeGreaterThanOrEqual(1);
+    const afterBootstrap = fetchCount;
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(14 * 60_000);
+    });
+    expect(fetchCount).toBe(afterBootstrap);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+    expect(fetchCount).toBe(afterBootstrap + 1);
+  });
+
+  it("reset signal manual refresh bypasses ttl", async () => {
+    let fetchCount = 0;
+    forecastInvokeMock.mockImplementation(async () => {
+      fetchCount += 1;
+      return resetSignalFixture();
+    });
+    mockLoadedDashboard();
+    render(<App />);
+
+    await waitFor(() => expect(fetchCount).toBeGreaterThanOrEqual(1));
+    const refreshButton = screen.getByRole("button", { name: /rescan/i });
+    await waitFor(() => expect(refreshButton).toBeEnabled());
+    const before = fetchCount;
+    fireEvent.click(refreshButton);
+    await waitFor(() => expect(fetchCount).toBeGreaterThan(before));
+  });
+
+  it("reset signal single flight", async () => {
+    vi.useFakeTimers();
+    let fetchCount = 0;
+    let resolveFetch: (value: unknown) => void = () => {};
+    forecastInvokeMock.mockImplementation(() => {
+      fetchCount += 1;
+      return new Promise((resolve) => {
+        resolveFetch = resolve;
+      });
+    });
+    mockLoadedDashboard();
+    render(<App />);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    fireEvent.click(screen.getByRole("button", { name: /rescan/i }));
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(fetchCount).toBe(1);
+    await act(async () => {
+      resolveFetch(resetSignalFixture());
+      await Promise.resolve();
+    });
+  });
+
+  it("reset signal failure keeps last good", async () => {
+    forecastInvokeMock.mockResolvedValueOnce(resetSignalFixture());
+    mockLoadedDashboard();
+    render(<App />);
+
+    await waitFor(() => expect(screen.getByText(/Scheduled/i)).toBeInTheDocument());
+    forecastInvokeMock.mockRejectedValueOnce(new Error("fetch failed"));
+    fireEvent.click(screen.getByRole("button", { name: /rescan/i }));
+    await waitFor(() => expect(screen.getByText(/Signal delayed \(stale\)/i)).toBeInTheDocument());
+    expect(screen.getByText(/Scheduled/i)).toBeInTheDocument();
+  });
+
+  it("server analytics payload update triggers tray refresh", async () => {
+    let analyticsCalls = 0;
+    forecastInvokeMock.mockResolvedValue(resetSignalFixture());
+    invokeMock.mockImplementation(async (command: string, args?: { range?: string }) => {
+      if (command === "fetch_codex_limits") {
+        return limits(80);
+      }
+      if (command === "scan_usage") {
+        return scan(0);
+      }
+      if (command === "fetch_overview" && args?.range === "30d") {
+        return overview();
+      }
+      if (command === "check_for_updates") {
+        return { hasUpdate: false, currentVersion: "1.0.0", latestVersion: "1.0.0", latestTag: "v1.0.0", releaseName: null, releaseNotes: null, releaseUrl: "" };
+      }
+      if (command === "fetch_server_credit_analytics") {
+        analyticsCalls += 1;
+        return serverAnalyticsFixture(analyticsCalls === 1 ? null : 20700);
+      }
+      throw new Error(`Unexpected invoke: ${command}`);
+    });
+    render(<App />);
+
+    await waitFor(() => expect(updateTrayMock).toHaveBeenCalled());
+    const before = updateTrayMock.mock.calls.length;
+    fireEvent.click(screen.getByRole("button", { name: /rescan/i }));
+    await waitFor(() => expect(updateTrayMock.mock.calls.length).toBeGreaterThan(before));
   });
 });

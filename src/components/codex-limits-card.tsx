@@ -1,6 +1,6 @@
 import { ChevronDown, ExternalLink, LogIn, RotateCcw } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import type { CodexLimitWindow, CodexLimitsResponse, CodexQuotaForecastResponse, CodexResetCredit } from "@/lib/api";
+import type { CodexLimitWindow, CodexLimitsResponse, CodexResetCredit, CodexResetSignalResponse } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import dayjs from "dayjs";
 import { useState } from "react";
@@ -9,8 +9,8 @@ import { useTranslation } from "react-i18next";
 type CodexLimitsCardProps = {
   limits: CodexLimitsResponse | null;
   error: string | null;
-  quotaForecast?: CodexQuotaForecastResponse | null;
-  onOpenQuotaForecast?: () => void;
+  resetSignal?: CodexResetSignalResponse | null;
+  onOpenResetSignal?: () => void;
   onOpenResetCredits: () => void;
 };
 
@@ -19,12 +19,7 @@ type LimitRowProps = {
   window: CodexLimitWindow | null;
 };
 
-type QuotaForecastTone = {
-  label: string;
-  className: string;
-  scoreClassName: string;
-  ringColor: string;
-};
+
 
 function isOAuthLoginError(err: string | null): boolean {
   if (!err) return false;
@@ -45,10 +40,8 @@ export function hasSubscription(limits: CodexLimitsResponse | null | undefined):
   return ["plus", "pro", "team", "enterprise"].includes(level);
 }
 
-export function CodexLimitsCard({ limits, error, quotaForecast, onOpenQuotaForecast, onOpenResetCredits }: CodexLimitsCardProps) {
+export function CodexLimitsCard({ limits, error, resetSignal, onOpenResetSignal, onOpenResetCredits }: CodexLimitsCardProps) {
   const { t } = useTranslation();
-  const quotaForecastScore = quotaForecast ? Math.round(clampPercent(quotaForecast.score)) : null;
-  const quotaForecastTone = quotaForecastScore === null ? null : getQuotaForecastTone(quotaForecastScore, t);
 
   return (
     <Card className="h-full flex flex-col rounded-lg">
@@ -66,7 +59,7 @@ export function CodexLimitsCard({ limits, error, quotaForecast, onOpenQuotaForec
                 </p>
                 <div className="bg-muted/60 hover:bg-muted p-2.5 rounded-lg font-mono text-xs select-all border border-border flex items-center justify-between group transition-colors">
                   <span className="text-foreground select-all">codex auth login</span>
-                  <span className="text-[10px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">{t("limits.click_to_select")}</span>
+                  <span className="text-[10px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-colors">{t("limits.click_to_select")}</span>
                 </div>
               </div>
               <p className="text-[10px] text-muted-foreground/80 leading-normal mt-2 pt-2 border-t border-border/40">
@@ -92,12 +85,10 @@ export function CodexLimitsCard({ limits, error, quotaForecast, onOpenQuotaForec
               <LimitRow label="monthly" window={limits?.weekly ?? limits?.session ?? null} />
             )}
             <ResetArea
-              quotaForecast={quotaForecast}
-              quotaForecastScore={quotaForecastScore}
-              quotaForecastTone={quotaForecastTone}
+              resetSignal={resetSignal}
               resetCreditsAvailableCount={limits?.resetCreditsAvailableCount}
               resetCredits={limits?.resetCredits}
-              onOpenQuotaForecast={onOpenQuotaForecast}
+              onOpenResetSignal={onOpenResetSignal}
               onOpenResetCredits={onOpenResetCredits}
             />
           </div>
@@ -107,93 +98,51 @@ export function CodexLimitsCard({ limits, error, quotaForecast, onOpenQuotaForec
   );
 }
 
-function formatQuotaForecast(score: number, t: any) {
-  const roundedScore = Math.round(clampPercent(score));
-  if (roundedScore >= 70) {
-    return t("limits.quota_forecast_likely", { score: roundedScore });
+function resetSignalLabel(signal: CodexResetSignalResponse, t: (key: string, options?: any) => string) {
+  switch (signal.status) {
+    case "completed":
+      return t("limits.reset_signal_completed");
+    case "scheduled":
+      return t("limits.reset_signal_scheduled");
+    case "likely":
+      return t("limits.reset_signal_likely");
+    case "none":
+      return t("limits.reset_signal_none");
+    case "unavailable":
+      return t("limits.reset_signal_unavailable");
   }
-  if (roundedScore >= 40) {
-    return t("limits.quota_forecast_possible", { score: roundedScore });
-  }
-  return t("limits.quota_forecast_low", { score: roundedScore });
 }
 
-function getQuotaForecastTone(score: number, t: any): QuotaForecastTone {
-  if (score >= 70) {
-    return {
-      label: t("limits.quota_forecast_likely_label"),
-      className: "border-error/30 bg-error/10 hover:border-error/45 hover:bg-error/15",
-      scoreClassName: "text-error",
-      ringColor: "rgb(var(--error))",
-    };
+function resetSignalClassName(status: CodexResetSignalResponse["status"]) {
+  switch (status) {
+    case "completed":
+      return "border-success/30 bg-success/10 hover:border-success/45 hover:bg-success/15";
+    case "scheduled":
+      return "border-warning/35 bg-warning/10 hover:border-warning/50 hover:bg-warning/15";
+    case "likely":
+      return "border-error/30 bg-error/10 hover:border-error/45 hover:bg-error/15";
+    case "none":
+      return "border-border bg-muted/30 hover:border-border/70";
+    case "unavailable":
+      return "border-border bg-muted/30 hover:border-border/70";
   }
-
-  if (score >= 40) {
-    return {
-      label: t("limits.quota_forecast_possible_label"),
-      className: "border-warning/35 bg-warning/10 hover:border-warning/50 hover:bg-warning/15",
-      scoreClassName: "text-warning",
-      ringColor: "rgb(var(--warning))",
-    };
-  }
-
-  return {
-    label: t("limits.quota_forecast_low_label"),
-    className: "border-success/30 bg-success/10 hover:border-success/45 hover:bg-success/15",
-    scoreClassName: "text-success",
-    ringColor: "rgb(var(--success))",
-  };
-}
-
-function QuotaForecastRing({ score, tone }: { score: number; tone: QuotaForecastTone }) {
-  const radius = 18;
-  const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (score / 100) * circumference;
-
-  return (
-    <span className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-background/55">
-      <svg viewBox="0 0 48 48" className="h-10 w-10" role="img" aria-label={`${score}% reset probability`}>
-        <circle cx="24" cy="24" r={radius} fill="none" stroke="rgb(var(--border) / 0.65)" strokeWidth="4" />
-        <circle
-          cx="24"
-          cy="24"
-          r={radius}
-          fill="none"
-          stroke={tone.ringColor}
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          strokeLinecap="round"
-          strokeWidth="4"
-          transform="rotate(-90 24 24)"
-          className="transition-all duration-500 ease-out"
-        />
-      </svg>
-      <span className={cn("absolute font-mono text-[11px] font-bold leading-none tabular-nums", tone.scoreClassName)}>
-        {score}
-      </span>
-    </span>
-  );
 }
 
 function ResetArea({
-  quotaForecast,
-  quotaForecastScore,
-  quotaForecastTone,
+  resetSignal,
   resetCreditsAvailableCount,
   resetCredits,
-  onOpenQuotaForecast,
+  onOpenResetSignal,
   onOpenResetCredits,
 }: {
-  quotaForecast?: CodexQuotaForecastResponse | null;
-  quotaForecastScore: number | null;
-  quotaForecastTone: QuotaForecastTone | null;
+  resetSignal?: CodexResetSignalResponse | null;
   resetCreditsAvailableCount?: number | null;
   resetCredits?: CodexResetCredit[] | null;
-  onOpenQuotaForecast?: () => void;
+  onOpenResetSignal?: () => void;
   onOpenResetCredits: () => void;
 }) {
   const { t } = useTranslation();
-  const showQuotaForecast = quotaForecast && quotaForecastScore !== null && quotaForecastTone;
+  const showResetSignal = Boolean(resetSignal);
   const showResetCredits = resetCreditsAvailableCount !== null && resetCreditsAvailableCount !== undefined;
 
   return (
@@ -201,20 +150,41 @@ function ResetArea({
       data-testid="reset-area"
       className="rounded-xl border border-border bg-surface p-2.5 sm:p-3 transition-all duration-300 hover:border-border/80 hover:shadow-sm"
     >
-      {showQuotaForecast ? (
+      {showResetSignal && resetSignal ? (
         <button
           type="button"
           className={cn(
-            "group flex w-full items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-            quotaForecastTone.className,
+            "group flex w-full items-center gap-2 rounded-lg border px-2.5 py-2 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+            resetSignalClassName(resetSignal.status),
           )}
-          onClick={onOpenQuotaForecast}
-          aria-label={t("limits.quota_forecast_open")}
+          onClick={onOpenResetSignal}
+          aria-label={t("limits.reset_signal_open")}
         >
-          <QuotaForecastRing score={quotaForecastScore} tone={quotaForecastTone} />
-          <span className="min-w-0">
-            <span className="mt-0.5 block text-[10px] font-semibold leading-none text-foreground/80">
-              {quotaForecastTone.label}
+          <span className="min-w-0 flex-1">
+            <span className="block text-[10px] font-semibold leading-none text-foreground/80">
+              {resetSignalLabel(resetSignal, t)}
+            </span>
+            {resetSignal.effectiveAt ? (
+              <span className="mt-1 block text-[10px] leading-none text-foreground/70">
+                {t("limits.reset_signal_effective_at", {
+                  time: dayjs(resetSignal.effectiveAt).format("HH:mm"),
+                })}
+              </span>
+            ) : null}
+            {resetSignal.confidence !== null && resetSignal.confidence !== undefined ? (
+              <span className="mt-1 block text-[9px] leading-none text-muted-foreground">
+                {t("limits.reset_signal_confidence", {
+                  percent: Math.round(resetSignal.confidence * 100),
+                })}
+              </span>
+            ) : null}
+            {resetSignal.stale ? (
+              <span className="mt-1 block text-[9px] font-medium leading-none text-warning">
+                {t("limits.reset_signal_stale")}
+              </span>
+            ) : null}
+            <span className="mt-1 block text-[9px] leading-none text-muted-foreground/70">
+              {t("limits.reset_signal_non_official")}
             </span>
           </span>
           <ExternalLink className="ml-auto h-3.5 w-3.5 opacity-55 transition-opacity group-hover:opacity-90" aria-hidden="true" />
@@ -225,7 +195,7 @@ function ResetArea({
           availableCount={resetCreditsAvailableCount}
           credits={resetCredits}
           onOpen={onOpenResetCredits}
-          separated={Boolean(showQuotaForecast)}
+          separated={Boolean(showResetSignal)}
         />
       ) : null}
     </div>

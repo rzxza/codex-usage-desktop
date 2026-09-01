@@ -1,0 +1,425 @@
+{
+  "data": [
+    {
+      "date": "2026-07-23",
+      "totals": {
+        "users": 0,
+        "threads": 0,
+        "turns": 0,
+        "credits": 0.0,
+        "uncached_text_input_tokens": 600000,
+        "cached_text_input_tokens": 60000,
+        "text_output_tokens": 120000,
+        "text_total_tokens": 780000
+      },
+      "clients": []
+    },
+    {
+      "date": "2026-07-24",
+      "totals": {
+        "users": 0,
+        "threads": 0,
+        "turns": 0,
+        "credits": 0.0,
+        "uncached_text_input_tokens": 700000,
+        "cached_text_input_tokens": 70000,
+        "text_output_tokens": 140000,
+        "text_total_tokens": 910000
+      },
+      "clients": []
+    },
+    {
+      "date": "2026-07-25",
+      "totals": {
+        "users": 0,
+        "threads": 0,
+        "turns": 0,
+        "credits": 0.0,
+        "uncached_text_input_tokens": 800000,
+        "cached_text_input_tokens": 80000,
+        "text_output_tokens": 160000,
+        "text_total_tokens": 1040000
+      },
+      "clients": []
+    },
+    {
+      "date": "2026-07-26",
+      "totals": {
+        "users": 0,
+        "threads": 0,
+        "turns": 0,
+        "credits": 0.0,
+        "uncached_text_input_tokens": 900000,
+        "cached_text_input_tokens": 90000,
+        "text_output_tokens": 180000,
+        "text_total_tokens": 1170000
+      },
+      "clients": []
+    },
+    {
+      "date": "2026-07-27",
+      "totals": {
+        "users": 0,
+        "threads": 0,
+        "turns": 0,
+        "credits": 0.0,
+        "uncached_text_input_tokens": 100000,
+        "cached_text_input_tokens": 10000,
+        "text_output_tokens": 20000,
+        "text_total_tokens": 130000
+      },
+      "clients": []
+    },
+    {
+      "date": "2026-07-28",
+      "totals": {
+        "users": 0,
+        "threads": 0,
+        "turns": 0,
+        "credits": 0.0,
+        "uncached_text_input_tokens": 200000,
+        "cached_text_input_tokens": 20000,
+        "text_output_tokens": 40000,
+        "text_total_tokens": 260000
+      },
+      "clients": []
+    },
+    {
+      "date": "2026-07-29",
+      "totals": {
+        "users": 0,
+        "threads": 0,
+        "turns": 0,
+        "credits": 0.0,
+        "uncached_text_input_tokens": 300000,
+        "cached_text_input_tokens": 30000,
+        "text_output_tokens": 60000,
+        "text_total_tokens": 390000
+      },
+      "clients": []
+    },
+    {
+      "date": "2026-07-30",
+      "totals": {
+        "users": 0,
+        "threads": 0,
+        "turns": 0,
+        "credits": 0.0,
+        "uncached_text_input_tokens": 400000,
+        "cached_text_input_tokens": 40000,
+        "text_output_tokens": 80000,
+        "text_total_tokens": 520000
+      },
+      "clients": []
+    },
+    {
+      "date": "2026-07-31",
+      "totals": {
+        "users": 0,
+        "threads": 0,
+        "turns": 0,
+        "credits": 0.0,
+        "uncached_text_input_tokens": 500000,
+        "cached_text_input_tokens": 50000,
+        "text_output_tokens": 100000,
+        "text_total_tokens": 650000
+      },
+      "clients": []
+    },
+    {
+      "date": "2026-08-01",
+      "totals": {
+        "users": 0,
+        "threads": 0,
+        "turns": 0,
+        "credits": 0.0,
+        "uncached_text_input_tokens": 200000,
+        "cached_text_input_tokens": 20000,
+        "text_output_tokens": 40000,
+        "text_total_tokens": 260000
+      },
+      "clients": []
+    },
+    {
+      "date": "2026-08-02",
+      "totals": {
+        "users": 0,
+        "threads": 0,
+        "turns": 0,
+        "credits": 0.0,
+        "uncached_text_input_tokens": 300000,
+        "cached_text_input_tokens": 30000,
+        "text_output_tokens": 60000,
+        "text_total_tokens": 390000
+      },
+      "clients": []
+    },
+    {
+      "date": "2026-08-03",
+      "totals": {
+        "users": 0,
+        "threads": 0,
+        "turns": 0,
+        "credits": 0.0,
+        "uncached_text_input_tokens": 400000,
+        "cached_text_input_tokens": 40000,
+        "text_output_tokens": 80000,
+        "text_total_tokens": 520000
+      },
+      "clients": []
+    },
+    {
+      "date": "2026-08-04",
+      "totals": {
+        "users": 0,
+        "threads": 0,
+        "turns": 0,
+        "credits": 0.0,
+        "uncached_text_input_tokens": 500000,
+        "cached_text_input_tokens": 50000,
+        "text_output_tokens": 100000,
+        "text_total_tokens": 650000
+      },
+      "clients": []
+    },
+    {
+      "date": "2026-08-05",
+      "totals": {
+        "users": 0,
+        "threads": 0,
+        "turns": 0,
+        "credits": 0.0,
+        "uncached_text_input_tokens": 600000,
+        "cached_text_input_tokens": 60000,
+        "text_output_tokens": 120000,
+        "text_total_tokens": 780000
+      },
+      "clients": []
+    },
+    {
+      "date": "2026-08-06",
+      "totals": {
+        "users": 0,
+        "threads": 0,
+        "turns": 0,
+        "credits": 0.0,
+        "uncached_text_input_tokens": 700000,
+        "cached_text_input_tokens": 70000,
+        "text_output_tokens": 140000,
+        "text_total_tokens": 910000
+      },
+      "clients": []
+    },
+    {
+      "date": "2026-08-07",
+      "totals": {
+        "users": 0,
+        "threads": 0,
+        "turns": 0,
+        "credits": 0.0,
+        "uncached_text_input_tokens": 800000,
+        "cached_text_input_tokens": 80000,
+        "text_output_tokens": 160000,
+        "text_total_tokens": 1040000
+      },
+      "clients": []
+    },
+    {
+      "date": "2026-08-08",
+      "totals": {
+        "users": 0,
+        "threads": 0,
+        "turns": 0,
+        "credits": 0.0,
+        "uncached_text_input_tokens": 900000,
+        "cached_text_input_tokens": 90000,
+        "text_output_tokens": 180000,
+        "text_total_tokens": 1170000
+      },
+      "clients": []
+    },
+    {
+      "date": "2026-08-09",
+      "totals": {
+        "users": 0,
+        "threads": 0,
+        "turns": 0,
+        "credits": 0.0,
+        "uncached_text_input_tokens": 100000,
+        "cached_text_input_tokens": 10000,
+        "text_output_tokens": 20000,
+        "text_total_tokens": 130000
+      },
+      "clients": []
+    },
+    {
+      "date": "2026-08-10",
+      "totals": {
+        "users": 0,
+        "threads": 0,
+        "turns": 0,
+        "credits": 0.0,
+        "uncached_text_input_tokens": 200000,
+        "cached_text_input_tokens": 20000,
+        "text_output_tokens": 40000,
+        "text_total_tokens": 260000
+      },
+      "clients": []
+    },
+    {
+      "date": "2026-08-11",
+      "totals": {
+        "users": 0,
+        "threads": 0,
+        "turns": 0,
+        "credits": 0.0,
+        "uncached_text_input_tokens": 300000,
+        "cached_text_input_tokens": 30000,
+        "text_output_tokens": 60000,
+        "text_total_tokens": 390000
+      },
+      "clients": []
+    },
+    {
+      "date": "2026-08-12",
+      "totals": {
+        "users": 0,
+        "threads": 0,
+        "turns": 0,
+        "credits": 0.0,
+        "uncached_text_input_tokens": 400000,
+        "cached_text_input_tokens": 40000,
+        "text_output_tokens": 80000,
+        "text_total_tokens": 520000
+      },
+      "clients": []
+    },
+    {
+      "date": "2026-08-13",
+      "totals": {
+        "users": 0,
+        "threads": 0,
+        "turns": 0,
+        "credits": 0.0,
+        "uncached_text_input_tokens": 500000,
+        "cached_text_input_tokens": 50000,
+        "text_output_tokens": 100000,
+        "text_total_tokens": 650000
+      },
+      "clients": []
+    },
+    {
+      "date": "2026-08-14",
+      "totals": {
+        "users": 0,
+        "threads": 0,
+        "turns": 0,
+        "credits": 0.0,
+        "uncached_text_input_tokens": 600000,
+        "cached_text_input_tokens": 60000,
+        "text_output_tokens": 120000,
+        "text_total_tokens": 780000
+      },
+      "clients": []
+    },
+    {
+      "date": "2026-08-15",
+      "totals": {
+        "users": 0,
+        "threads": 0,
+        "turns": 0,
+        "credits": 0.0,
+        "uncached_text_input_tokens": 700000,
+        "cached_text_input_tokens": 70000,
+        "text_output_tokens": 140000,
+        "text_total_tokens": 910000
+      },
+      "clients": []
+    },
+    {
+      "date": "2026-08-16",
+      "totals": {
+        "users": 0,
+        "threads": 0,
+        "turns": 0,
+        "credits": 0.0,
+        "uncached_text_input_tokens": 800000,
+        "cached_text_input_tokens": 80000,
+        "text_output_tokens": 160000,
+        "text_total_tokens": 1040000
+      },
+      "clients": []
+    },
+    {
+      "date": "2026-08-17",
+      "totals": {
+        "users": 0,
+        "threads": 0,
+        "turns": 0,
+        "credits": 0.0,
+        "uncached_text_input_tokens": 900000,
+        "cached_text_input_tokens": 90000,
+        "text_output_tokens": 180000,
+        "text_total_tokens": 1170000
+      },
+      "clients": []
+    },
+    {
+      "date": "2026-08-18",
+      "totals": {
+        "users": 0,
+        "threads": 0,
+        "turns": 0,
+        "credits": 0.0,
+        "uncached_text_input_tokens": 100000,
+        "cached_text_input_tokens": 10000,
+        "text_output_tokens": 20000,
+        "text_total_tokens": 130000
+      },
+      "clients": []
+    },
+    {
+      "date": "2026-08-19",
+      "totals": {
+        "users": 0,
+        "threads": 0,
+        "turns": 0,
+        "credits": 0.0,
+        "uncached_text_input_tokens": 200000,
+        "cached_text_input_tokens": 20000,
+        "text_output_tokens": 40000,
+        "text_total_tokens": 260000
+      },
+      "clients": []
+    },
+    {
+      "date": "2026-08-20",
+      "totals": {
+        "users": 0,
+        "threads": 0,
+        "turns": 0,
+        "credits": 0.0,
+        "uncached_text_input_tokens": 300000,
+        "cached_text_input_tokens": 30000,
+        "text_output_tokens": 60000,
+        "text_total_tokens": 390000
+      },
+      "clients": []
+    },
+    {
+      "date": "2026-08-21",
+      "totals": {
+        "users": 0,
+        "threads": 0,
+        "turns": 0,
+        "credits": 0.0,
+        "uncached_text_input_tokens": 400000,
+        "cached_text_input_tokens": 40000,
+        "text_output_tokens": 80000,
+        "text_total_tokens": 520000
+      },
+      "clients": []
+    }
+  ],
+  "group_by": "day"
+}

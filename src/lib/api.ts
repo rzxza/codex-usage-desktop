@@ -140,11 +140,126 @@ export type CodexLimitsResponse = {
   subscriptionWillRenew?: boolean | null;
 };
 
-export type CodexQuotaForecastResponse = {
-  score: number;
+export type CodexResetSignalResponse = {
+  status: "completed" | "scheduled" | "likely" | "none" | "unavailable";
+  kind?: string | null;
+  confidence?: number | null;
+  announcedAt?: string | null;
+  effectiveAt?: string | null;
   fetchedAt: string;
-  nextRefreshAt: string;
+  plans: string[];
+  windows: string[];
+  sourceUrl: string;
+  rationale?: string | null;
+  text?: string | null;
+  stale: boolean;
 };
+
+
+export type CalibrationStatus = "excellent" | "good" | "warning" | "invalid";
+export type ServerCreditAnalyticsStatus = "ready" | "partial" | "invalid";
+
+export type CalibrationSummary = {
+  k: number | null;
+  sampleCount: number;
+  deviation: number | null;
+  maxDeviation: number | null;
+  status: CalibrationStatus;
+};
+
+export type ModelCreditUsage = {
+  model: string;
+  credits: number;
+  percent: number;
+};
+
+export type DailyCreditUsage = {
+  date: string;
+  credits: number | null;
+  isPartial: boolean;
+  isPending: boolean;
+  models: ModelCreditUsage[];
+};
+
+export type CreditAggregate = {
+  credits: number | null;
+  models: ModelCreditUsage[];
+};
+
+export type CalibrationDiagnostics = {
+  eligibleDays: number;
+  excludedDays: number;
+  unsupportedModels: string[];
+  unsupportedSpeeds: string[];
+  units: string;
+};
+
+export type IncompleteDayReason =
+  | "missing_counts"
+  | "missing_breakdown"
+  | "non_percent_units"
+  | "unsupported_model"
+  | "unsupported_speed"
+  | "zero_counts_conflict"
+  | "no_usable_model_share"
+  | "uncalculable_credits";
+
+export type IncompleteDayDiagnostic = {
+  date: string;
+  reasons: IncompleteDayReason[];
+  unsupportedModels: string[];
+  unsupportedSpeeds: string[];
+};
+
+export type CreditWindowCompleteness = {
+  expectedDays: number;
+  completeDays: number;
+  missingDates: string[];
+  incompleteDays: IncompleteDayDiagnostic[];
+  isComplete: boolean;
+};
+
+export type CompleteCreditWindow = {
+  startDate: string;
+  endDate: string;
+  credits: number | null;
+  knownCredits?: number | null;
+  knownModels?: ModelCreditUsage[];
+  models: ModelCreditUsage[];
+  completeness: CreditWindowCompleteness;
+};
+
+export type SevenDayCreditPoint = {
+  date: string;
+  credits: number | null;
+};
+
+export type ServerCreditAnalyticsResponse = {
+  diagnostics?: CalibrationDiagnostics;
+  fetchedAt: string;
+  startDate: string;
+  endDate: string;
+  status: ServerCreditAnalyticsStatus;
+  calibration: CalibrationSummary;
+  latestCompleteDate: string | null;
+  latestCompleteDay: DailyCreditUsage | null;
+  last7CompleteDays: CompleteCreditWindow;
+  previous7CompleteDays: CompleteCreditWindow;
+  last30CompleteDays: CompleteCreditWindow;
+  sevenDayDeltaPercent: number | null;
+  sevenDaySeries: SevenDayCreditPoint[];
+  today: DailyCreditUsage | null;
+  last7Days: CreditAggregate;
+  last30Days: CreditAggregate;
+  daily: DailyCreditUsage[];
+  models: ModelCreditUsage[];
+};
+
+export async function fetchServerCreditAnalytics(
+  forceRefresh = false,
+): Promise<ServerCreditAnalyticsResponse> {
+  return invoke<ServerCreditAnalyticsResponse>("fetch_server_credit_analytics", { forceRefresh });
+}
 
 export type UsageRefreshResponse = {
   scan: ScanResponse;
@@ -182,8 +297,8 @@ export async function fetchCodexLimits(): Promise<CodexLimitsResponse> {
   return invoke<CodexLimitsResponse>("fetch_codex_limits");
 }
 
-export async function fetchCodexQuotaForecast(): Promise<CodexQuotaForecastResponse> {
-  return invoke<CodexQuotaForecastResponse>("fetch_codex_quota_forecast");
+export async function fetchCodexResetSignal(): Promise<CodexResetSignalResponse> {
+  return invoke<CodexResetSignalResponse>("fetch_codex_reset_signal");
 }
 
 export async function resetUsageState(): Promise<void> {
@@ -206,10 +321,6 @@ export type UpdateCheckResponse = {
   notModified?: boolean | null;
 };
 
-export type UpdateInstallResponse = {
-  version: string;
-};
-
 export type UpdateDownloadProgress = {
   downloaded: number;
   total: number | null;
@@ -221,10 +332,6 @@ export async function checkForUpdates(etag?: string | null): Promise<UpdateCheck
     return invoke<UpdateCheckResponse>("check_for_updates", { etag });
   }
   return invoke<UpdateCheckResponse>("check_for_updates");
-}
-
-export async function downloadAndInstallUpdate(): Promise<UpdateInstallResponse> {
-  return invoke<UpdateInstallResponse>("download_and_install_update");
 }
 
 export async function restartApp(): Promise<void> {

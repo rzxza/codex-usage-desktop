@@ -6,18 +6,19 @@ import { useTranslation } from "react-i18next";
 import {
   exportUsage,
   fetchCodexLimits,
-  fetchCodexQuotaForecast,
+  fetchCodexResetSignal,
+  fetchServerCreditAnalytics,
   fetchMonthlyUsage,
   fetchOverview,
   resetUsageState,
   type CodexLimitsResponse,
-  type CodexQuotaForecastResponse,
+  type CodexResetSignalResponse,
+  type ServerCreditAnalyticsResponse,
   type ExportFormat,
   type MonthlyUsageResponse,
   type OverviewResponse,
   type RangeKey,
   checkForUpdates,
-  downloadAndInstallUpdate,
   openUrl,
   restartApp,
   type UpdateCheckResponse,
@@ -31,10 +32,11 @@ import {
   type UsageRefreshResponse,
 } from "@/lib/api";
 import { formatCompactNumber, formatCurrency, formatCurrencyShort, formatNumber } from "@/lib/formatters";
+import { primaryQuotaLabel, primaryQuotaTitlePrefix, selectPrimaryQuota } from "@/lib/quota";
 import type { DashboardView } from "@/components/dashboard-header";
 import { getExportDialogOptions, getExportFileName, getRangeLabel } from "@/lib/usage-dashboard";
 import tauriConfig from "../../src-tauri/tauri.conf.json";
-import { formatResetTime, hasSubscription } from "@/components/codex-limits-card";
+import { formatResetTime } from "@/components/codex-limits-card";
 
 function isNewerVersion(current: string, target: string): boolean {
   const parse = (v: string) => {
@@ -50,9 +52,11 @@ function isNewerVersion(current: string, target: string): boolean {
 }
 
 const AUTO_RESCAN_MS = 5 * 60_000;
+const RESET_SIGNAL_REFRESH_MS = 15 * 60_000;
+const UPDATES_ENABLED = false;
 const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60_000;
 const UPDATE_CHECK_RETRY_MS = 60 * 60_000;
-const CODEX_QUOTA_FORECAST_URL = "https://www.willcodexquotareset.com/";
+const CODEX_RUNWAY_STATUS_URL = "https://www.codexrunway.com/status";
 const CHATGPT_USAGE_URL = "https://chatgpt.com/#settings/Usage";
 
 function formatCompactResetCountdown(resetsAt: string | null): string | null {
@@ -130,7 +134,11 @@ export function useUsageDashboard() {
   const [monthlyUsage, setMonthlyUsage] = useState<MonthlyUsageResponse | null>(null);
   const [codexLimits, setCodexLimits] = useState<CodexLimitsResponse | null>(null);
   const [codexLimitsError, setCodexLimitsError] = useState<string | null>(null);
-  const [codexQuotaForecast, setCodexQuotaForecast] = useState<CodexQuotaForecastResponse | null>(null);
+  const [codexResetSignal, setCodexResetSignal] = useState<CodexResetSignalResponse | null>(null);
+  const [codexResetSignalError, setCodexResetSignalError] = useState<string | null>(null);
+  const [serverAnalytics, setServerAnalytics] = useState<ServerCreditAnalyticsResponse | null>(null);
+  const [serverAnalyticsError, setServerAnalyticsError] = useState<string | null>(null);
+  const [isServerAnalyticsLoading, setIsServerAnalyticsLoading] = useState(false);
   const [scanMessage, setScanMessage] = useState(() => t("hero.sync_logs_to_cache_desc", { defaultValue: "Sync local logs to cache" }));
   const [error, setError] = useState<string | null>(null);
   const [bootstrapped, setBootstrapped] = useState(false);
@@ -206,6 +214,16 @@ export function useUsageDashboard() {
   }, [bootstrapped]);
 
   useEffect(() => {
+    if (!bootstrapped) return;
+
+    const timer = window.setInterval(() => {
+      void loadCodexResetSignal();
+    }, RESET_SIGNAL_REFRESH_MS);
+
+    return () => window.clearInterval(timer);
+  }, [bootstrapped]);
+
+  useEffect(() => {
     let isMounted = true;
     let unlisten: (() => void) | null = null;
 
@@ -250,6 +268,8 @@ export function useUsageDashboard() {
   const hasBootstrappedRef = useRef(false);
   const lastLimitsFetchTimeRef = useRef<number>(0);
   const lastAutoScanTimeRef = useRef<number>(0);
+  const lastResetSignalFetchAtRef = useRef<number | null>(null);
+  const resetSignalInFlightRef = useRef<Promise<void> | null>(null);
   const scanInFlightRef = useRef<Promise<void> | null>(null);
   const updateCheckInFlightRef = useRef<Promise<void> | null>(null);
 
@@ -289,12 +309,45 @@ export function useUsageDashboard() {
     }
   });
 
-  const loadCodexQuotaForecast = useEffectEvent(async () => {
+  const loadCodexResetSignal = useEffectEvent(async ({ force = false }: { force?: boolean } = {}) => {
+    const now = Date.now();
+    const lastFetchAt = lastResetSignalFetchAtRef.current;
+    if (!force && lastFetchAt !== null && now - lastFetchAt < RESET_SIGNAL_REFRESH_MS) {
+      return;
+    }
+    if (resetSignalInFlightRef.current) {
+      await resetSignalInFlightRef.current;
+      return;
+    }
+
+    const promise = (async () => {
+      try {
+        const data = await fetchCodexResetSignal();
+        setCodexResetSignal(data);
+        setCodexResetSignalError(null);
+      } catch (err) {
+        setCodexResetSignalError(errorMessage(err, "Failed to load reset signal."));
+        setCodexResetSignal((prev) => (prev ? { ...prev, stale: true } : null));
+      } finally {
+        lastResetSignalFetchAtRef.current = Date.now();
+        resetSignalInFlightRef.current = null;
+      }
+    })();
+
+    resetSignalInFlightRef.current = promise;
+    await promise;
+  });
+  const loadServerCreditAnalytics = useEffectEvent(async (forceRefresh = false) => {
+    setIsServerAnalyticsLoading(true);
     try {
-      const data = await fetchCodexQuotaForecast();
-      setCodexQuotaForecast(data);
-    } catch (_) {
-      setCodexQuotaForecast(null);
+      const data = await fetchServerCreditAnalytics(forceRefresh);
+      setServerAnalytics(data);
+      setServerAnalyticsError(null);
+    } catch (serverError) {
+      // Keep the last successful payload on screen; the card flags staleness.
+      setServerAnalyticsError(errorMessage(serverError, "Failed to load server credit analytics."));
+    } finally {
+      setIsServerAnalyticsLoading(false);
     }
   });
 
@@ -361,6 +414,7 @@ export function useUsageDashboard() {
     const startedAt = performance.now();
     try {
       await scanAndReloadOverview(startedAt, { force: hasExpiredCodexLimitWindow(codexLimits) });
+      await loadServerCreditAnalytics();
     } catch (scanError) {
       setError(scanError instanceof Error ? scanError.message : "Background refresh failed.");
     }
@@ -501,7 +555,8 @@ export function useUsageDashboard() {
     try {
       // Do not block initial render on limits fetch
       void loadCodexLimits();
-      void loadCodexQuotaForecast();
+      void loadCodexResetSignal();
+      void loadServerCreditAnalytics();
       await loadOverview(range);
       setBootstrapped(true);
     } catch (loadError) {
@@ -516,7 +571,18 @@ export function useUsageDashboard() {
       setError(scanError instanceof Error ? scanError.message : "Background refresh failed.");
     });
 
-    void runBackgroundUpdateCheck();
+    if (UPDATES_ENABLED) {
+      void runBackgroundUpdateCheck();
+    } else {
+      try {
+        localStorage.removeItem("last_update_check_result");
+        localStorage.removeItem("last_update_check_time");
+        localStorage.removeItem("last_update_check_failed_time");
+        localStorage.removeItem("dismissed_update_tag");
+      } catch (_) {
+        // Ignore storage errors.
+      }
+    }
   });
 
   const handleBackgroundRefreshCompleted = useEffectEvent(async (refresh: UsageRefreshResponse) => {
@@ -543,6 +609,7 @@ export function useUsageDashboard() {
         await loadSessions();
       }
     }
+    void loadServerCreditAnalytics();
   });
 
   useEffect(() => {
@@ -550,7 +617,7 @@ export function useUsageDashboard() {
   }, [bootstrap]);
 
   useEffect(() => {
-    if (!bootstrapped) return;
+    if (!bootstrapped || !UPDATES_ENABLED) return;
 
     let cancelled = false;
     let timer: number | null = null;
@@ -671,21 +738,12 @@ export function useUsageDashboard() {
     const todayTokens = todayRow ? todayRow.totalTokens : 0;
     const todayCost = todayRow ? todayRow.costUSD : 0;
 
-    const hasSub = hasSubscription(codexLimits);
+    const primaryQuota = selectPrimaryQuota(codexLimits);
+    const quotaTitlePrefix = primaryQuotaTitlePrefix();
 
     const titleParts: string[] = [];
-    if (hasSub) {
-      if (trayTitleShow.limit5h) {
-        titleParts.push(formatTrayLimitTitle("5h", codexLimits?.session));
-      }
-      if (trayTitleShow.limitWeekly) {
-        titleParts.push(formatTrayLimitTitle("W", codexLimits?.weekly));
-      }
-    } else {
-      if (trayTitleShow.limit5h || trayTitleShow.limitWeekly) {
-        const activeWindow = codexLimits?.weekly ?? codexLimits?.session;
-        titleParts.push(formatTrayLimitTitle("M", activeWindow));
-      }
+    if (trayTitleShow.limit5h || trayTitleShow.limitWeekly) {
+      titleParts.push(formatTrayLimitTitle(quotaTitlePrefix, primaryQuota));
     }
 
     if (trayTitleShow.tokens) {
@@ -698,28 +756,12 @@ export function useUsageDashboard() {
 
     const items: TrayMenuItemDto[] = [];
 
-    if (hasSub) {
-      if (trayMenuShow.limit5h) {
-        const text = codexLimits?.session
-          ? `${t("limits.window_5hour")}: ${Math.round(codexLimits.session.remainingPercent)}% ${t("limits.remaining")} (${t("limits.consumed")}: ${Math.round(codexLimits.session.usedPercent)}%); ${formatResetTime(codexLimits.session.resetsAt, codexLimits.session.windowMinutes, t)}`
-          : `${t("limits.window_5hour")}: ${t("limits.unavailable")}`;
-        items.push({ id: "status_5h", text, enabled: false });
-      }
-
-      if (trayMenuShow.limitWeekly) {
-        const text = codexLimits?.weekly
-          ? `${t("limits.window_weekly")}: ${Math.round(codexLimits.weekly.remainingPercent)}% ${t("limits.remaining")} (${t("limits.consumed")}: ${Math.round(codexLimits.weekly.usedPercent)}%); ${formatResetTime(codexLimits.weekly.resetsAt, codexLimits.weekly.windowMinutes, t)}`
-          : `${t("limits.window_weekly")}: ${t("limits.unavailable")}`;
-        items.push({ id: "status_weekly", text, enabled: false });
-      }
-    } else {
-      if (trayMenuShow.limit5h || trayMenuShow.limitWeekly) {
-        const activeWindow = codexLimits?.weekly ?? codexLimits?.session;
-        const text = activeWindow
-          ? `${t("limits.window_monthly")}: ${Math.round(activeWindow.remainingPercent)}% ${t("limits.remaining")} (${t("limits.consumed")}: ${Math.round(activeWindow.usedPercent)}%)`
-          : `${t("limits.window_monthly")}: ${t("limits.unavailable")}`;
-        items.push({ id: "status_monthly", text, enabled: false });
-      }
+    if (trayMenuShow.limit5h || trayMenuShow.limitWeekly) {
+      const quotaLabel = primaryQuotaLabel(t);
+      const text = primaryQuota
+        ? `${quotaLabel}: ${Math.round(primaryQuota.remainingPercent)}% ${t("limits.remaining")} (${t("limits.consumed")}: ${Math.round(primaryQuota.usedPercent)}%); ${formatResetTime(primaryQuota.resetsAt, primaryQuota.windowMinutes, t)}`
+        : `${quotaLabel}: ${t("limits.unavailable")}`;
+      items.push({ id: "status_primary_quota", text, enabled: false });
     }
 
     if ((trayMenuShow.limit5h || trayMenuShow.limitWeekly) && (trayMenuShow.tokens || trayMenuShow.cost)) {
@@ -736,6 +778,30 @@ export function useUsageDashboard() {
       items.push({ id: "status_cost", text, enabled: false });
     }
 
+    if (serverAnalytics) {
+      const latestCredits = serverAnalytics.latestCompleteDay?.credits;
+      if (latestCredits !== null && latestCredits !== undefined) {
+        const date = serverAnalytics.latestCompleteDate
+          ? serverAnalytics.latestCompleteDate.slice(5)
+          : "";
+        items.push({
+          id: "status_latest_credits",
+          text: `${t("compact.latest_complete_day")} ${date}: ≈${formatNumber(latestCredits)}`,
+          enabled: false,
+        });
+      }
+      const weekCredits = serverAnalytics.last7CompleteDays.credits;
+      if (weekCredits !== null && weekCredits !== undefined) {
+        items.push({
+          id: "status_7d_credits",
+          text: `${t("compact.seven_day_credits")}: ≈${formatNumber(weekCredits)}`,
+          enabled: false,
+        });
+      }
+    }
+
+    items.push({ id: "show_compact", text: t("compact.show_tray"), enabled: true });
+
     void updateTray({
       title,
       items,
@@ -747,6 +813,7 @@ export function useUsageDashboard() {
   }, [
     bootstrapped,
     codexLimits,
+    serverAnalytics,
     overview,
     trayTitleShow,
     trayMenuShow,
@@ -805,7 +872,8 @@ export function useUsageDashboard() {
 
     try {
       await scanAndReloadOverview(startedAt, { force: true });
-      await loadCodexQuotaForecast();
+      await loadCodexResetSignal({ force: true });
+      await loadServerCreditAnalytics(true);
     } catch (refreshError) {
       setError(refreshError instanceof Error ? refreshError.message : "Refresh failed.");
     } finally {
@@ -892,6 +960,7 @@ export function useUsageDashboard() {
   };
 
   const handleManualUpdateCheck = async () => {
+    if (!UPDATES_ENABLED) return;
     setIsUpdateChecking(true);
     setUpdateCheckError(null);
     try {
@@ -915,6 +984,7 @@ export function useUsageDashboard() {
   };
 
   const handleUpgrade = async () => {
+    if (!UPDATES_ENABLED) return;
     if (updateInstallStatus === "installed") {
       try {
         localStorage.removeItem("last_update_check_result");
@@ -926,22 +996,8 @@ export function useUsageDashboard() {
       return;
     }
 
-    if (!updateInfo?.hasUpdate || updateInstallStatus === "downloading") {
-      return;
-    }
-
-    setUpdateInstallStatus("downloading");
-    setUpdateProgress(emptyUpdateProgress);
-    setUpdateInstallError(null);
-    try {
-      await downloadAndInstallUpdate();
-      setUpdateProgress((progress) => ({ ...progress, percent: 100, finished: true }));
-      setUpdateInstallStatus("installed");
-    } catch (e) {
-      setUpdateInstallStatus("idle");
-      setUpdateProgress(emptyUpdateProgress);
-      setUpdateInstallError(errorMessage(e, "Failed to download and install the update."));
-    }
+    // Install path is intentionally unreachable for RC: UPDATES_ENABLED is false
+    // and the download_and_install_update command is no longer registered.
   };
 
   const handleOpenUpdateRelease = async () => {
@@ -954,11 +1010,11 @@ export function useUsageDashboard() {
     }
   };
 
-  const handleOpenCodexQuotaForecast = async () => {
+  const handleOpenCodexResetSignal = async () => {
     try {
-      await openUrl(CODEX_QUOTA_FORECAST_URL);
+      await openUrl(codexResetSignal?.sourceUrl ?? CODEX_RUNWAY_STATUS_URL);
     } catch (e) {
-      console.error("Failed to open Codex quota forecast URL", e);
+      console.error("Failed to open Codex reset signal URL", e);
     }
   };
 
@@ -977,7 +1033,11 @@ export function useUsageDashboard() {
     monthlyUsage,
     codexLimits,
     codexLimitsError,
-    codexQuotaForecast,
+    codexResetSignal,
+    codexResetSignalError,
+    serverAnalytics,
+    serverAnalyticsError,
+    isServerAnalyticsLoading,
     scanMessage,
     error,
     isLoading,
@@ -1009,7 +1069,7 @@ export function useUsageDashboard() {
     handleManualUpdateCheck,
     handleUpgrade,
     handleOpenUpdateRelease,
-    handleOpenCodexQuotaForecast,
+    handleOpenCodexResetSignal,
     handleOpenResetCredits,
     handleLaunchAtLoginChange,
     trayTitleShow,

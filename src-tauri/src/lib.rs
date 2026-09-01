@@ -1,31 +1,29 @@
 mod codex_environment;
 mod codex_limits;
+mod credit_analytics;
+mod credit_rates;
 mod date;
 mod db;
 mod exporter;
 mod overview;
 mod pricing;
 mod scanner;
+mod server_analytics;
 mod session_index;
 mod session_replay;
 mod types;
 
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
-use std::sync::{
-    atomic::{AtomicU64, Ordering},
-    Arc,
-};
 use std::time::{Duration, Instant};
 use tauri::menu::{Menu, MenuItem, MenuItemKind};
 use tauri::tray::{MouseButton, TrayIconBuilder, TrayIconEvent};
 use tauri::{Emitter, Manager};
-use tauri_plugin_updater::UpdaterExt;
 use types::{
-    CodexLimitsResponse, CodexQuotaForecastResponse, ExportResponse, ModelPricingCatalogResponse,
+    CodexLimitsResponse, CodexResetSignalResponse, ExportResponse, ModelPricingCatalogResponse,
     MonthlyUsageResponse, OverviewResponse, ProjectAnalyticsResponse, ScanResponse,
-    SessionDetailRow, SessionReplayDetail, UpdateCheckResponse, UpdateDownloadProgress,
-    UpdateInstallResponse, UsageRefreshResponse,
+    ServerCreditAnalyticsResponse, SessionDetailRow, SessionReplayDetail, UpdateCheckResponse,
+    UsageRefreshResponse,
 };
 
 const BACKGROUND_RESCAN_INTERVAL: Duration = Duration::from_secs(5 * 60);
@@ -201,10 +199,21 @@ async fn fetch_codex_limits() -> Result<CodexLimitsResponse, String> {
 }
 
 #[tauri::command]
-async fn fetch_codex_quota_forecast() -> Result<CodexQuotaForecastResponse, String> {
-    tauri::async_runtime::spawn_blocking(codex_limits::fetch_codex_quota_forecast)
+async fn fetch_codex_reset_signal() -> Result<CodexResetSignalResponse, String> {
+    tauri::async_runtime::spawn_blocking(codex_limits::fetch_codex_reset_signal)
         .await
         .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+async fn fetch_server_credit_analytics(
+    force_refresh: bool,
+) -> Result<ServerCreditAnalyticsResponse, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        server_analytics::fetch_server_credit_analytics(force_refresh)
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
 
 #[tauri::command]
@@ -283,6 +292,31 @@ async fn export_usage(
     .map_err(|error| error.to_string())?
 }
 
+#[tauri::command]
+async fn export_eink_png(bytes: Vec<u8>, target_path: Option<String>) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let file_path = if let Some(path) = target_path {
+            PathBuf::from(path)
+        } else {
+            let download_dir = dirs::download_dir()
+                .or_else(dirs::desktop_dir)
+                .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+            download_dir.join("codex-eink-400x300.png")
+        };
+
+        if let Some(parent) = file_path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+
+        std::fs::write(&file_path, bytes)
+            .map_err(|e| format!("Failed to write PNG file: {e}"))?;
+
+        Ok(file_path.to_string_lossy().to_string())
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
 fn parse_version(v: &str) -> Option<(u32, u32, u32)> {
     let clean = v.trim_start_matches("app-v").trim_start_matches('v');
     let parts: Vec<&str> = clean.split('.').collect();
@@ -328,6 +362,25 @@ async fn check_for_updates(
             etag
         );
 
+        // RC: the fork does not have signing secrets / a release workflow yet,
+        // so the update channel is intentionally disabled to avoid checking a
+        // different source than the one builds are published to. Flip this
+        // together with wiring the fork release pipeline.
+        const UPDATES_ENABLED: bool = false;
+        if !UPDATES_ENABLED {
+            return Ok(UpdateCheckResponse {
+                has_update: false,
+                latest_version: current_version.clone(),
+                latest_tag: format!("v{current_version}"),
+                release_name: Some("Updates disabled in this RC build".to_string()),
+                release_notes: None,
+                release_url: "https://github.com/rzxza/codex-usage-desktop/releases".to_string(),
+                etag: None,
+                not_modified: None,
+                current_version,
+            });
+        }
+
         let client = reqwest::blocking::Client::builder()
             .timeout(std::time::Duration::from_secs(8))
             .build()
@@ -345,7 +398,8 @@ async fn check_for_updates(
             version: String,
         }
 
-        let manifest_url = "https://github.com/itvincent-git/codex-usage-desktop/releases/latest/download/latest.json";
+        let manifest_url =
+            "https://github.com/rzxza/codex-usage-desktop/releases/latest/download/latest.json";
         let manifest_response = client
             .get(manifest_url)
             .header("User-Agent", "codex-usage-desktop")
@@ -390,7 +444,7 @@ async fn check_for_updates(
             version
         );
         let mut api_request = client
-            .get("https://api.github.com/repos/itvincent-git/codex-usage-desktop/releases/latest")
+            .get("https://api.github.com/repos/rzxza/codex-usage-desktop/releases/latest")
             .header("User-Agent", "codex-usage-desktop")
             .header("Accept", "application/json");
 
@@ -414,8 +468,12 @@ async fn check_for_updates(
                 latest_version: version.clone(),
                 latest_tag: format!("app-v{}", version),
                 release_name: Some(format!("Codex Usage Desktop v{}", version)),
-                release_notes: Some("A new update is available. Please view the release page for details.".to_string()),
-                release_url: "https://github.com/itvincent-git/codex-usage-desktop/releases/latest".to_string(),
+                release_notes: Some(
+                    "A new update is available. Please view the release page for details."
+                        .to_string(),
+                ),
+                release_url: "https://github.com/rzxza/codex-usage-desktop/releases/latest"
+                    .to_string(),
                 etag,
                 not_modified: Some(true),
             });
@@ -430,13 +488,16 @@ async fn check_for_updates(
                 latest_tag: format!("app-v{}", version),
                 release_name: Some(format!("Codex Usage Desktop v{}", version)),
                 release_notes: None,
-                release_url: "https://github.com/itvincent-git/codex-usage-desktop/releases/latest".to_string(),
+                release_url: "https://github.com/rzxza/codex-usage-desktop/releases/latest"
+                    .to_string(),
                 etag: None,
                 not_modified: Some(false),
             });
         }
 
-        let response_etag = response.headers().get("etag")
+        let response_etag = response
+            .headers()
+            .get("etag")
             .and_then(|v| v.to_str().ok())
             .map(|s| s.to_string());
 
@@ -471,7 +532,8 @@ async fn check_for_updates(
                 latest_tag: format!("app-v{}", version),
                 release_name: Some(format!("Codex Usage Desktop v{}", version)),
                 release_notes: None,
-                release_url: "https://github.com/itvincent-git/codex-usage-desktop/releases/latest".to_string(),
+                release_url: "https://github.com/rzxza/codex-usage-desktop/releases/latest"
+                    .to_string(),
                 etag: None,
                 not_modified: Some(false),
             });
@@ -498,57 +560,6 @@ async fn check_for_updates(
     })
     .await
     .map_err(|e| e.to_string())?
-}
-
-#[tauri::command]
-async fn download_and_install_update(
-    app: tauri::AppHandle,
-) -> Result<UpdateInstallResponse, String> {
-    let updater = app.updater().map_err(|e| e.to_string())?;
-    let update = updater
-        .check()
-        .await
-        .map_err(|e| e.to_string())?
-        .ok_or_else(|| "No update available.".to_string())?;
-
-    let version = update.version.clone();
-    let downloaded = Arc::new(AtomicU64::new(0));
-    let finished_downloaded = Arc::clone(&downloaded);
-    let progress_app = app.clone();
-    update
-        .download_and_install(
-            |chunk_length, content_length| {
-                let downloaded = downloaded
-                    .fetch_add(chunk_length as u64, Ordering::Relaxed)
-                    .saturating_add(chunk_length as u64);
-                let _ = progress_app.emit(
-                    "update-download-progress",
-                    UpdateDownloadProgress {
-                        downloaded,
-                        total: content_length,
-                        finished: false,
-                    },
-                );
-                log::debug!("Downloaded updater chunk: {chunk_length} bytes of {content_length:?}");
-            },
-            || {
-                let downloaded = finished_downloaded.load(Ordering::Relaxed);
-                let _ = app.emit(
-                    "update-download-progress",
-                    UpdateDownloadProgress {
-                        downloaded,
-                        total: Some(downloaded),
-                        finished: true,
-                    },
-                );
-                log::info!("Update download finished.");
-            },
-        )
-        .await
-        .map_err(|e| e.to_string())?;
-
-    log::info!("Update {version} installed. Waiting for user restart.");
-    Ok(UpdateInstallResponse { version })
 }
 
 #[tauri::command]
@@ -705,10 +716,9 @@ pub fn run() {
                 .build(),
         )
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                if window.label() == "main" {
+                if window.label() == "main" || window.label() == "compact" {
                     let _ = window.hide();
                     api.prevent_close();
                 }
@@ -737,6 +747,14 @@ pub fn run() {
 
             setup_app_menu(app)?;
 
+            // Autostart launches with `--hidden`; keep the main window out of
+            // the way in that case (tray/compact remain available).
+            if std::env::args().any(|arg| arg == "--hidden") {
+                if let Some(main_window) = app.get_webview_window("main") {
+                    let _ = main_window.hide();
+                }
+            }
+
             let app_data_dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&app_data_dir)?;
             let database_path = app_data_dir.join("codex-usage-desktop.db");
@@ -761,6 +779,13 @@ pub fn run() {
                     "show_main" => {
                         if let Some(window) = app.get_webview_window("main") {
                             let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    }
+                    "show_compact" => {
+                        if let Some(window) = app.get_webview_window("compact") {
+                            let _ = window.show();
+                            let _ = window.unminimize();
                             let _ = window.set_focus();
                         }
                     }
@@ -822,11 +847,12 @@ pub fn run() {
             fetch_model_pricing_catalog,
             fetch_monthly_usage,
             fetch_codex_limits,
-            fetch_codex_quota_forecast,
+            fetch_codex_reset_signal,
+            fetch_server_credit_analytics,
             reset_usage_state,
             export_usage,
+            export_eink_png,
             check_for_updates,
-            download_and_install_update,
             restart_app,
             open_url,
             fetch_session_details,

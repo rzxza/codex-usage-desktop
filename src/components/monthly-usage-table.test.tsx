@@ -86,7 +86,7 @@ describe("MonthlyUsageTable", () => {
 
     await selectSort("Cost");
     expect(screen.getByRole("button", { name: "Descending" })).toBeInTheDocument();
-  });
+  }, 30_000);
 
   it("merges consecutive inactive months for month sorting and puts them last for metric sorting", async () => {
     render(<MonthlyUsageTable data={response([

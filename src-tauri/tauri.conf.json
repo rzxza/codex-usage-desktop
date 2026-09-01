@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Codex Usage Desktop",
-  "version": "2.2.1",
+  "version": "2.3.0-rc.1",
   "identifier": "com.ccusage.codex.desktop",
   "build": {
     "beforeDevCommand": "pnpm dev",
@@ -20,6 +20,20 @@
         "minHeight": 760,
         "resizable": true,
         "devtools": true
+      },
+      {
+        "label": "compact",
+        "title": "Codex Monitor",
+        "url": "index.html#/compact",
+        "width": 420,
+        "height": 330,
+        "resizable": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "decorations": false,
+        "visible": false,
+        "center": true,
+        "transparent": true
       }
     ],
     "security": {
@@ -28,17 +42,9 @@
   },
   "bundle": {
     "active": true,
-    "createUpdaterArtifacts": true,
+    "createUpdaterArtifacts": false,
     "icon": [
       "icons/icon.png"
     ]
-  },
-  "plugins": {
-    "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEJDMjlFQThGNDU1RDNBMzMKUldRek9sMUZqK29wdk83KzNIeUVwMEsxaDJXQjRRTkJQUlBOa0QvbWh6UEUybzVaNzZhaHE1MlMK",
-      "endpoints": [
-        "https://github.com/itvincent-git/codex-usage-desktop/releases/latest/download/latest.json"
-      ]
-    }
   }
 }

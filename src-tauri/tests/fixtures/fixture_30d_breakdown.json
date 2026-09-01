@@ -1,0 +1,300 @@
+{
+  "data": [
+    {
+      "date": "2026-07-23",
+      "models": [
+        {
+          "model": "gpt-5.6-sol",
+          "speed": "standard",
+          "credits": 49.725
+        }
+      ]
+    },
+    {
+      "date": "2026-07-24",
+      "models": [
+        {
+          "model": "gpt-5.6-luna",
+          "speed": "standard",
+          "credits": 2.3205
+        }
+      ]
+    },
+    {
+      "date": "2026-07-25",
+      "models": [
+        {
+          "model": "gpt-5.6-terra",
+          "speed": "standard",
+          "credits": 26.52
+        }
+      ]
+    },
+    {
+      "date": "2026-07-26",
+      "models": [
+        {
+          "model": "gpt-5.6-sol",
+          "speed": "standard",
+          "credits": 74.5875
+        }
+      ]
+    },
+    {
+      "date": "2026-07-27",
+      "models": [
+        {
+          "model": "gpt-5.6-luna",
+          "speed": "standard",
+          "credits": 0.3315
+        }
+      ]
+    },
+    {
+      "date": "2026-07-28",
+      "models": [
+        {
+          "model": "gpt-5.6-terra",
+          "speed": "standard",
+          "credits": 6.63
+        }
+      ]
+    },
+    {
+      "date": "2026-07-29",
+      "models": [
+        {
+          "model": "gpt-5.6-sol",
+          "speed": "standard",
+          "credits": 24.8625
+        }
+      ]
+    },
+    {
+      "date": "2026-07-30",
+      "models": [
+        {
+          "model": "gpt-5.6-luna",
+          "speed": "standard",
+          "credits": 1.326
+        }
+      ]
+    },
+    {
+      "date": "2026-07-31",
+      "models": [
+        {
+          "model": "gpt-5.6-terra",
+          "speed": "standard",
+          "credits": 16.575
+        }
+      ]
+    },
+    {
+      "date": "2026-08-01",
+      "models": [
+        {
+          "model": "gpt-5.6-terra",
+          "speed": "standard",
+          "credits": 6.63
+        }
+      ]
+    },
+    {
+      "date": "2026-08-02",
+      "models": [
+        {
+          "model": "gpt-5.6-sol",
+          "speed": "standard",
+          "credits": 24.8625
+        }
+      ]
+    },
+    {
+      "date": "2026-08-03",
+      "models": [
+        {
+          "model": "gpt-5.6-luna",
+          "speed": "standard",
+          "credits": 1.326
+        }
+      ]
+    },
+    {
+      "date": "2026-08-04",
+      "models": [
+        {
+          "model": "gpt-5.6-terra",
+          "speed": "standard",
+          "credits": 16.575
+        }
+      ]
+    },
+    {
+      "date": "2026-08-05",
+      "models": [
+        {
+          "model": "gpt-5.6-sol",
+          "speed": "standard",
+          "credits": 49.725
+        }
+      ]
+    },
+    {
+      "date": "2026-08-06",
+      "models": [
+        {
+          "model": "gpt-5.6-luna",
+          "speed": "standard",
+          "credits": 2.3205
+        }
+      ]
+    },
+    {
+      "date": "2026-08-07",
+      "models": [
+        {
+          "model": "gpt-5.6-terra",
+          "speed": "standard",
+          "credits": 26.52
+        }
+      ]
+    },
+    {
+      "date": "2026-08-08",
+      "models": [
+        {
+          "model": "gpt-5.6-sol",
+          "speed": "standard",
+          "credits": 74.5875
+        }
+      ]
+    },
+    {
+      "date": "2026-08-09",
+      "models": [
+        {
+          "model": "gpt-5.6-luna",
+          "speed": "standard",
+          "credits": 0.3315
+        }
+      ]
+    },
+    {
+      "date": "2026-08-10",
+      "models": [
+        {
+          "model": "gpt-5.6-terra",
+          "speed": "standard",
+          "credits": 6.63
+        }
+      ]
+    },
+    {
+      "date": "2026-08-11",
+      "models": [
+        {
+          "model": "gpt-5.6-sol",
+          "speed": "standard",
+          "credits": 24.8625
+        }
+      ]
+    },
+    {
+      "date": "2026-08-12",
+      "models": [
+        {
+          "model": "gpt-5.6-luna",
+          "speed": "standard",
+          "credits": 1.326
+        }
+      ]
+    },
+    {
+      "date": "2026-08-13",
+      "models": [
+        {
+          "model": "gpt-5.6-terra",
+          "speed": "standard",
+          "credits": 16.575
+        }
+      ]
+    },
+    {
+      "date": "2026-08-14",
+      "models": [
+        {
+          "model": "gpt-5.6-sol",
+          "speed": "standard",
+          "credits": 49.725
+        }
+      ]
+    },
+    {
+      "date": "2026-08-15",
+      "models": [
+        {
+          "model": "gpt-5.6-luna",
+          "speed": "standard",
+          "credits": 2.3205
+        }
+      ]
+    },
+    {
+      "date": "2026-08-16",
+      "models": [
+        {
+          "model": "gpt-5.6-terra",
+          "speed": "standard",
+          "credits": 26.52
+        }
+      ]
+    },
+    {
+      "date": "2026-08-17",
+      "models": [
+        {
+          "model": "gpt-5.6-sol",
+          "speed": "standard",
+          "credits": 74.5875
+        }
+      ]
+    },
+    {
+      "date": "2026-08-18",
+      "models": [
+        {
+          "model": "gpt-5.6-luna",
+          "speed": "standard",
+          "credits": 0.3315
+        }
+      ]
+    },
+    {
+      "date": "2026-08-19",
+      "models": [
+        {
+          "model": "gpt-5.6-terra",
+          "speed": "standard",
+          "credits": 6.63
+        }
+      ]
+    },
+    {
+      "date": "2026-08-20",
+      "models": [
+        {
+          "model": "gpt-5.6-sol",
+          "speed": "standard",
+          "credits": 24.8625
+        }
+      ]
+    },
+    {
+      "date": "2026-08-21",
+      "models": []
+    }
+  ],
+  "group_by": "day",
+  "units": "percent"
+}

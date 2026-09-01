@@ -245,10 +245,19 @@ pub struct CodexLimitsResponse {
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct CodexQuotaForecastResponse {
-    pub score: i64,
+pub struct CodexResetSignalResponse {
+    pub status: String,
+    pub kind: Option<String>,
+    pub confidence: Option<f64>,
+    pub announced_at: Option<String>,
+    pub effective_at: Option<String>,
     pub fetched_at: String,
-    pub next_refresh_at: String,
+    pub plans: Vec<String>,
+    pub windows: Vec<String>,
+    pub source_url: String,
+    pub rationale: Option<String>,
+    pub text: Option<String>,
+    pub stale: bool,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -273,20 +282,6 @@ pub struct UpdateCheckResponse {
     pub release_url: String,
     pub etag: Option<String>,
     pub not_modified: Option<bool>,
-}
-
-#[derive(Debug, Clone, Serialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct UpdateInstallResponse {
-    pub version: String,
-}
-
-#[derive(Debug, Clone, Serialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct UpdateDownloadProgress {
-    pub downloaded: u64,
-    pub total: Option<u64>,
-    pub finished: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -480,4 +475,141 @@ pub struct SessionReplayDetail {
     pub raw_jsonl: String,
     pub summary: SessionReplaySummary,
     pub turns: Vec<SessionReplayTurn>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ServerCreditAnalyticsStatus {
+    Ready,
+    Partial,
+    Invalid,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CalibrationStatus {
+    Excellent,
+    Good,
+    Warning,
+    Invalid,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CalibrationSummary {
+    pub k: Option<f64>,
+    pub sample_count: usize,
+    pub deviation: Option<f64>,
+    pub max_deviation: Option<f64>,
+    pub status: CalibrationStatus,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelCreditUsage {
+    pub model: String,
+    pub credits: f64,
+    pub percent: f64,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct DailyCreditUsage {
+    pub date: String,
+    pub credits: Option<f64>,
+    pub is_partial: bool,
+    pub is_pending: bool,
+    pub models: Vec<ModelCreditUsage>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CreditAggregate {
+    pub credits: Option<f64>,
+    pub models: Vec<ModelCreditUsage>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum IncompleteDayReason {
+    MissingCounts,
+    MissingBreakdown,
+    NonPercentUnits,
+    UnsupportedModel,
+    UnsupportedSpeed,
+    ZeroCountsConflict,
+    NoUsableModelShare,
+    UncalculableCredits,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct IncompleteDayDiagnostic {
+    pub date: String,
+    pub reasons: Vec<IncompleteDayReason>,
+    pub unsupported_models: Vec<String>,
+    pub unsupported_speeds: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CreditWindowCompleteness {
+    pub expected_days: u32,
+    pub complete_days: u32,
+    pub missing_dates: Vec<String>,
+    pub incomplete_days: Vec<IncompleteDayDiagnostic>,
+    pub is_complete: bool,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CompleteCreditWindow {
+    pub start_date: String,
+    pub end_date: String,
+    pub credits: Option<f64>,
+    pub known_credits: Option<f64>,
+    pub known_models: Vec<ModelCreditUsage>,
+    pub models: Vec<ModelCreditUsage>,
+    pub completeness: CreditWindowCompleteness,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SevenDayCreditPoint {
+    pub date: String,
+    pub credits: Option<f64>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CalibrationDiagnostics {
+    pub eligible_days: usize,
+    pub excluded_days: usize,
+    pub unsupported_models: Vec<String>,
+    pub unsupported_speeds: Vec<String>,
+    pub units: String,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerCreditAnalyticsResponse {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub diagnostics: Option<CalibrationDiagnostics>,
+    pub fetched_at: String,
+    pub start_date: String,
+    pub end_date: String,
+    pub status: ServerCreditAnalyticsStatus,
+    pub calibration: CalibrationSummary,
+    pub latest_complete_date: Option<String>,
+    pub latest_complete_day: Option<DailyCreditUsage>,
+    pub last_7_complete_days: CompleteCreditWindow,
+    pub previous_7_complete_days: CompleteCreditWindow,
+    pub last_30_complete_days: CompleteCreditWindow,
+    pub seven_day_delta_percent: Option<f64>,
+    pub seven_day_series: Vec<SevenDayCreditPoint>,
+    pub today: Option<DailyCreditUsage>,
+    pub last_7_days: CreditAggregate,
+    pub last_30_days: CreditAggregate,
+    pub daily: Vec<DailyCreditUsage>,
+    pub models: Vec<ModelCreditUsage>,
 }
