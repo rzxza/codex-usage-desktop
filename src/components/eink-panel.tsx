@@ -43,7 +43,7 @@ export function EinkPanel({ limits, analytics, resetSignal }: EinkPanelProps) {
     try {
       const res = await triggerManualPush();
       if (res) {
-        setStatus(`推送成功 (${res.disposition}${res.detail ? `: ${res.detail}` : ""})`);
+        setStatus(`已更新本地文件: ${res.detail || fileSinkPath || "latest.png"}`);
       }
     } catch (err) {
       setStatus(err instanceof Error ? err.message : "推送失败");
@@ -158,6 +158,10 @@ export function EinkPanel({ limits, analytics, resetSignal }: EinkPanelProps) {
             </div>
           ) : null}
         </div>
+
+        <p className="text-[11px] text-muted-foreground bg-muted/20 p-2 rounded border border-border/40 leading-relaxed">
+          💡 提示：当前为<strong>本地文件同步模式</strong>。启动服务后，系统会自动将最新 400×300 渲染图写入 <code className="text-foreground font-mono font-semibold">{fileSinkPath || "D:\\CodexUsage\\eink\\latest.png"}</code>。请在“签变时光”中选择该文件上传。
+        </p>
 
         <div className="flex flex-wrap gap-2 pt-1">
           <Button

@@ -318,10 +318,17 @@ async fn export_eink_png(bytes: Vec<u8>, target_path: Option<String>) -> Result<
 }
 
 fn get_eink_dir() -> PathBuf {
+    #[cfg(windows)]
+    {
+        let d_path = PathBuf::from("D:\\CodexUsage\\eink");
+        if std::path::Path::new("D:\\").exists() {
+            return d_path;
+        }
+    }
     dirs::data_dir()
         .or_else(dirs::config_dir)
         .unwrap_or_else(|| PathBuf::from("."))
-        .join("com.codex.usage")
+        .join("CodexUsage")
         .join("eink")
 }
 
