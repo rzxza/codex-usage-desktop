@@ -189,7 +189,7 @@ describe("eink renderer and palette", () => {
 });
 
 describe("eink refresh policy and pixel deduplication", () => {
-  const activeSettings = { enabled: true, autoPush: true, refreshIntervalMinutes: 15, deviceId: null };
+  const activeSettings: import("./types").EinkSettings = { enabled: true, autoPush: true, refreshIntervalMinutes: 15, transportKind: "file", deviceId: null };
 
   it("deduplicates by rendered pixel matrix hash", () => {
     const a = sampleSnapshot();
@@ -254,7 +254,7 @@ describe("eink refresh policy and pixel deduplication", () => {
   });
 
   it("does not refresh when auto push is disabled", () => {
-    const disabledSettings = { enabled: true, autoPush: false, refreshIntervalMinutes: 15, deviceId: null };
+    const disabledSettings: import("./types").EinkSettings = { enabled: true, autoPush: false, refreshIntervalMinutes: 15, transportKind: "file", deviceId: null };
     const previous = sampleSnapshot();
     const next = sampleSnapshot({ quotaRemainingPercent: 40 });
     expect(shouldRefreshEink(previous, next, null, disabledSettings)).toBe(false);

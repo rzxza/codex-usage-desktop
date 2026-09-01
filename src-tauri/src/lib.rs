@@ -317,6 +317,48 @@ async fn export_eink_png(bytes: Vec<u8>, target_path: Option<String>) -> Result<
     .map_err(|error| error.to_string())?
 }
 
+fn get_eink_dir() -> PathBuf {
+    dirs::data_dir()
+        .or_else(dirs::config_dir)
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("com.codex.usage")
+        .join("eink")
+}
+
+#[tauri::command]
+async fn eink_get_file_sink_path() -> Result<String, String> {
+    let sink_path = get_eink_dir().join("latest.png");
+    Ok(sink_path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+async fn eink_write_latest_png(bytes: Vec<u8>) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let eink_dir = get_eink_dir();
+        std::fs::create_dir_all(&eink_dir)
+            .map_err(|e| format!("Failed to create eink directory: {e}"))?;
+
+        let temp_path = eink_dir.join("latest.png.tmp");
+        let final_path = eink_dir.join("latest.png");
+
+        std::fs::write(&temp_path, bytes)
+            .map_err(|e| format!("Failed to write temporary PNG: {e}"))?;
+
+        #[cfg(windows)]
+        {
+            if final_path.exists() {
+                let _ = std::fs::remove_file(&final_path);
+            }
+        }
+        std::fs::rename(&temp_path, &final_path)
+            .map_err(|e| format!("Failed to rename temporary PNG to latest.png: {e}"))?;
+
+        Ok(final_path.to_string_lossy().to_string())
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
 fn parse_version(v: &str) -> Option<(u32, u32, u32)> {
     let clean = v.trim_start_matches("app-v").trim_start_matches('v');
     let parts: Vec<&str> = clean.split('.').collect();
@@ -852,6 +894,8 @@ pub fn run() {
             reset_usage_state,
             export_usage,
             export_eink_png,
+            eink_get_file_sink_path,
+            eink_write_latest_png,
             check_for_updates,
             restart_app,
             open_url,
@@ -928,6 +972,43 @@ mod tests {
         ));
 
         delete_pricing_cache(&path).unwrap();
+    }
+
+    #[test]
+    fn eink_atomic_write_creates_and_overwrites_latest_png() {
+        let dir = std::env::temp_dir().join(format!(
+            "eink-test-{}",
+            Utc::now().timestamp_nanos_opt().unwrap_or_default()
+        ));
+        let _ = std::fs::create_dir_all(&dir);
+
+        let temp_path = dir.join("latest.png.tmp");
+        let final_path = dir.join("latest.png");
+
+        std::fs::write(&temp_path, b"test-1").unwrap();
+        #[cfg(windows)]
+        {
+            if final_path.exists() {
+                let _ = std::fs::remove_file(&final_path);
+            }
+        }
+        std::fs::rename(&temp_path, &final_path).unwrap();
+
+        assert_eq!(std::fs::read(&final_path).unwrap(), b"test-1");
+
+        // Overwrite
+        std::fs::write(&temp_path, b"test-2").unwrap();
+        #[cfg(windows)]
+        {
+            if final_path.exists() {
+                let _ = std::fs::remove_file(&final_path);
+            }
+        }
+        std::fs::rename(&temp_path, &final_path).unwrap();
+
+        assert_eq!(std::fs::read(&final_path).unwrap(), b"test-2");
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
