@@ -289,3 +289,15 @@ describe("eink transport", () => {
     expect(devices[0].id).toBe("manual-export");
   });
 });
+
+  it("handles telemetry in snapshot mapping", () => {
+    const snapshot = buildEinkSnapshot(null, null, null, { batteryPercent: 82, temperatureC: 27 });
+    expect(snapshot.batteryPercent).toBe(82);
+    expect(snapshot.temperatureC).toBe(27);
+  });
+
+  it("handles empty telemetry without fabricating fake defaults", () => {
+    const snapshot = buildEinkSnapshot(null, null, null);
+    expect(snapshot.batteryPercent).toBeNull();
+    expect(snapshot.temperatureC).toBeNull();
+  });

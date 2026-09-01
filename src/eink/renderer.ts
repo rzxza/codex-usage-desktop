@@ -225,31 +225,34 @@ export function renderEinkCanvas(snapshot: EinkSnapshot): HTMLCanvasElement {
 
   // 1. Header
   ctx.fillStyle = "#000000";
-  ctx.font = "bold 15px 'Microsoft YaHei', 'Segoe UI', Arial, sans-serif";
-  ctx.fillText("CODEX MONITOR", 16, 24);
-  ctx.font = "bold 12px 'Microsoft YaHei', 'Segoe UI', Arial, sans-serif";
-  ctx.fillText("CODEX", 345, 24);
-  ctx.fillRect(16, 32, 368, 2);
+  ctx.font = "bold 14px 'Microsoft YaHei', 'Segoe UI', Arial, sans-serif";
+  ctx.fillText("CODEX MONITOR", 16, 20);
+
+  const qVal = snapshot.quotaRemainingPercent;
+  const qStr = qVal !== null ? `Q${Math.round(qVal)}%` : "Q--";
+  const bStr =
+    snapshot.batteryPercent !== null && snapshot.batteryPercent !== undefined
+      ? `B${Math.round(snapshot.batteryPercent)}%`
+      : "B--";
+  const tStr =
+    snapshot.temperatureC !== null && snapshot.temperatureC !== undefined
+      ? `T${Math.round(snapshot.temperatureC)}°C`
+      : "T--";
+  ctx.font = "bold 11px 'Microsoft YaHei', 'Segoe UI', Arial, sans-serif";
+  ctx.fillText(`${qStr}  ${bStr}  ${tStr}`, 235, 20);
+  ctx.fillRect(16, 26, 368, 2);
 
   // 2. Quota Section
-  ctx.font = "bold 12px 'Microsoft YaHei', 'Segoe UI', Arial, sans-serif";
-  ctx.fillText("QUOTA", 16, 52);
-
   const quota = snapshot.quotaRemainingPercent;
   const quotaIsLow = quota !== null && quota <= 15;
-  if (quota !== null) {
-    ctx.fillStyle = quotaIsLow ? "#FF0000" : "#000000";
-    ctx.font = "bold 18px 'Microsoft YaHei', 'Segoe UI', Arial, sans-serif";
-    ctx.fillText(`${Math.round(quota)}%`, 345, 52);
-  }
 
   // Bar outline and fill
   ctx.strokeStyle = "#000000";
   ctx.lineWidth = 1;
-  ctx.strokeRect(16, 60, 368, 12);
+  ctx.strokeRect(16, 36, 368, 10);
   if (quota !== null && quota > 0) {
     ctx.fillStyle = quotaIsLow ? "#FF0000" : "#000000";
-    ctx.fillRect(18, 62, Math.round((clamp(quota, 0, 100) / 100) * 364), 8);
+    ctx.fillRect(18, 38, Math.round((clamp(quota, 0, 100) / 100) * 364), 6);
   }
 
   // Subtitle
@@ -257,45 +260,46 @@ export function renderEinkCanvas(snapshot: EinkSnapshot): HTMLCanvasElement {
   ctx.font = "11px 'Microsoft YaHei', 'Segoe UI', Arial, sans-serif";
   const cardStr = `Card x${snapshot.resetCardCount}`;
   const resetStr = snapshot.quotaResetAt ? `Reset in ${formatCountdown(snapshot.quotaResetAt)}` : "";
-  ctx.fillText([resetStr, cardStr].filter(Boolean).join(" · "), 16, 86);
+  ctx.fillText([resetStr, cardStr].filter(Boolean).join(" · "), 16, 58);
 
   // 3. Credits Section (Left Column)
-  ctx.fillRect(16, 96, 368, 1);
+  ctx.fillRect(16, 68, 368, 1);
   ctx.font = "11px 'Microsoft YaHei', 'Segoe UI', Arial, sans-serif";
   const lastDate = snapshot.latestCompleteDate ? `LAST ${formatDateShort(snapshot.latestCompleteDate)}` : "LAST --";
-  const lastCredits = snapshot.latestCompleteCredits !== null ? formatCreditsShort(snapshot.latestCompleteCredits) : "--";
-  ctx.fillText(lastDate, 16, 116);
+  const lastCredits = formatCreditsFull(snapshot.latestCompleteCredits);
+  ctx.fillText(lastDate, 16, 92);
   ctx.font = "bold 13px 'Microsoft YaHei', 'Segoe UI', Arial, sans-serif";
-  ctx.fillText(lastCredits, 110, 116);
+  ctx.fillText(lastCredits, 100, 92);
 
   // 7D Credits + Coverage
   ctx.font = "11px 'Microsoft YaHei', 'Segoe UI', Arial, sans-serif";
-  ctx.fillText("7D", 16, 138);
-  const c7 = snapshot.sevenDayCredits !== null ? formatCreditsShort(snapshot.sevenDayCredits) : "--";
+  ctx.fillText("7D", 16, 118);
+  const c7 = formatCreditsFull(snapshot.sevenDayCredits);
   ctx.font = "bold 13px 'Microsoft YaHei', 'Segoe UI', Arial, sans-serif";
-  ctx.fillText(c7, 45, 138);
+  ctx.fillText(c7, 45, 118);
   const cov7 = snapshot.sevenDayCoverage;
   const cov7Incomplete = cov7.completeDays < cov7.expectedDays;
   ctx.fillStyle = cov7Incomplete ? "#FF0000" : "#000000";
   ctx.font = "11px 'Microsoft YaHei', 'Segoe UI', Arial, sans-serif";
-  ctx.fillText(`${cov7.completeDays}/${cov7.expectedDays}${cov7Incomplete ? " !" : ""}`, 110, 138);
+  ctx.fillText(`${cov7.completeDays}/${cov7.expectedDays}${cov7Incomplete ? " !" : ""}`, 130, 118);
 
   // 30D Credits + Coverage
   ctx.fillStyle = "#000000";
-  ctx.fillText("30D", 16, 160);
-  const c30 = snapshot.thirtyDayCredits !== null ? formatCreditsShort(snapshot.thirtyDayCredits) : "--";
+  ctx.fillText("30D", 16, 144);
+  const c30 = formatCreditsFull(snapshot.thirtyDayCredits);
   ctx.font = "bold 13px 'Microsoft YaHei', 'Segoe UI', Arial, sans-serif";
-  ctx.fillText(c30, 45, 160);
+  ctx.fillText(c30, 45, 144);
   const cov30 = snapshot.thirtyDayCoverage;
   const cov30Incomplete = cov30.completeDays < cov30.expectedDays;
   ctx.fillStyle = cov30Incomplete ? "#FF0000" : "#000000";
   ctx.font = "11px 'Microsoft YaHei', 'Segoe UI', Arial, sans-serif";
-  ctx.fillText(`${cov30.completeDays}/${cov30.expectedDays}${cov30Incomplete ? " !" : ""}`, 110, 160);
+  ctx.fillText(`${cov30.completeDays}/${cov30.expectedDays}${cov30Incomplete ? " !" : ""}`, 130, 144);
 
   // 4. 7D Trend (Right Column)
+  ctx.fillRect(195, 72, 1, 84); // Vertical separator
   ctx.fillStyle = "#000000";
   ctx.font = "bold 11px 'Microsoft YaHei', 'Segoe UI', Arial, sans-serif";
-  ctx.fillText("7D TREND", 195, 114);
+  ctx.fillText("7D TREND", 205, 92);
 
   const series = snapshot.sevenDaySeries;
   if (series.length > 0) {
@@ -307,18 +311,18 @@ export function renderEinkCanvas(snapshot: EinkSnapshot): HTMLCanvasElement {
 
     const points: Array<{ x: number; y: number; known: boolean }> = [];
     for (let i = 0; i < Math.min(7, series.length); i += 1) {
-      const x = 200 + i * 26;
+      const x = 215 + i * 24;
       const cr = series[i].credits;
-      let y = 135;
+      let y = 118;
       if (cr !== null) {
         if (maxC > minC) {
-          y = 148 - Math.round(((cr - minC) / (maxC - minC)) * 26);
+          y = 128 - Math.round(((cr - minC) / (maxC - minC)) * 22);
         } else {
-          y = 135;
+          y = 118;
         }
         points.push({ x, y, known: true });
       } else {
-        points.push({ x, y: 135, known: false });
+        points.push({ x, y: 118, known: false });
       }
     }
 
@@ -360,52 +364,52 @@ export function renderEinkCanvas(snapshot: EinkSnapshot): HTMLCanvasElement {
     const deltaSign = snapshot.sevenDayDeltaPercent >= 0 ? "+" : "";
     ctx.fillText(
       `vs prev 7d ${deltaSign}${snapshot.sevenDayDeltaPercent.toFixed(1)}%`,
-      195,
-      160,
+      205,
+      144,
     );
   }
 
   // 5. Reset Signal Section
-  ctx.fillRect(16, 172, 368, 1);
+  ctx.fillRect(16, 158, 368, 1);
   const sigStatus = snapshot.resetSignalStatus;
   if (sigStatus === "scheduled") {
     ctx.fillStyle = "#FF0000";
-    ctx.font = "bold 13px 'Microsoft YaHei', 'Segoe UI', Arial, sans-serif";
+    ctx.font = "bold 14px 'Microsoft YaHei', 'Segoe UI', Arial, sans-serif";
     const effTime = snapshot.resetSignalEffectiveAt
       ? formatTimeShort(snapshot.resetSignalEffectiveAt)
       : "";
-    ctx.fillText(`RESET SCHEDULED ${effTime}`, 16, 200);
+    ctx.fillText(`RESET SCHEDULED ${effTime}`, 16, 195);
   } else if (sigStatus === "likely") {
     ctx.fillStyle = "#FF0000";
-    ctx.font = "bold 13px 'Microsoft YaHei', 'Segoe UI', Arial, sans-serif";
+    ctx.font = "bold 14px 'Microsoft YaHei', 'Segoe UI', Arial, sans-serif";
     const confPercent =
       snapshot.resetSignalConfidence !== null
         ? `${Math.round(snapshot.resetSignalConfidence * 100)}%`
         : "";
-    ctx.fillText(`RESET SIGNAL ${confPercent}`, 16, 200);
+    ctx.fillText(`RESET SIGNAL ${confPercent}`, 16, 195);
   } else if (sigStatus === "completed") {
     ctx.fillStyle = "#000000";
-    ctx.font = "bold 13px 'Microsoft YaHei', 'Segoe UI', Arial, sans-serif";
-    ctx.fillText("RESET DONE", 16, 200);
+    ctx.font = "bold 14px 'Microsoft YaHei', 'Segoe UI', Arial, sans-serif";
+    ctx.fillText("RESET DONE", 16, 195);
   } else if (sigStatus === "unavailable") {
     ctx.fillStyle = "#FF0000";
     ctx.font = "bold 12px 'Microsoft YaHei', 'Segoe UI', Arial, sans-serif";
-    ctx.fillText("RESET SIGNAL UNAVAILABLE", 16, 200);
+    ctx.fillText("RESET SIGNAL UNAVAILABLE", 16, 195);
   }
 
   // 6. Footer
-  ctx.fillRect(16, 255, 368, 1);
+  ctx.fillRect(16, 250, 368, 1);
   ctx.fillStyle = "#000000";
   ctx.font = "10px 'Microsoft YaHei', 'Segoe UI', Arial, sans-serif";
   const updated = snapshot.analyticsUpdatedAt
     ? `Updated ${formatTimeShort(snapshot.analyticsUpdatedAt)}`
     : "";
-  ctx.fillText(updated, 16, 278);
+  ctx.fillText(updated, 16, 275);
 
   if (quotaIsLow || cov7Incomplete || cov30Incomplete) {
     ctx.fillStyle = "#FF0000";
     ctx.beginPath();
-    ctx.arc(376, 275, 4, 0, Math.PI * 2);
+    ctx.arc(376, 272, 4, 0, Math.PI * 2);
     ctx.fill();
   }
 
@@ -534,11 +538,11 @@ function formatTimeShort(isoStr: string): string {
   return `${month}-${day} ${hours}:${minutes}`;
 }
 
-function formatCreditsShort(credits: number): string {
-  if (credits >= 1000) {
-    return `${(credits / 1000).toFixed(1)}K`;
+function formatCreditsFull(credits: number | null): string {
+  if (credits === null || credits === undefined || !Number.isFinite(credits)) {
+    return "--";
   }
-  return credits.toFixed(0);
+  return Math.round(credits).toLocaleString("en-US");
 }
 
 function formatCountdown(resetsAt: string): string {

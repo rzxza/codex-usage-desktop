@@ -9,6 +9,7 @@ export function buildEinkSnapshot(
   limits: CodexLimitsResponse | null | undefined,
   analytics: ServerCreditAnalyticsResponse | null | undefined,
   resetSignal: CodexResetSignalResponse | null | undefined,
+  telemetry?: { batteryPercent?: number | null; temperatureC?: number | null },
 ): EinkSnapshot {
   const quotaWindow = limits?.weekly ?? limits?.session ?? null;
   const last7 = analytics?.last7CompleteDays;
@@ -47,6 +48,8 @@ export function buildEinkSnapshot(
     resetSignalConfidence: resetSignal?.confidence ?? null,
     resetSignalEffectiveAt: resetSignal?.effectiveAt ?? null,
     analyticsUpdatedAt: analytics?.fetchedAt ?? null,
+    batteryPercent: telemetry?.batteryPercent ?? null,
+    temperatureC: telemetry?.temperatureC ?? null,
   };
 }
 

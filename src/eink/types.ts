@@ -21,6 +21,8 @@ export type EinkSnapshot = {
   resetSignalConfidence: number | null;
   resetSignalEffectiveAt: string | null;
   analyticsUpdatedAt: string | null;
+  batteryPercent?: number | null;
+  temperatureC?: number | null;
 };
 
 export type EinkDevice = {
@@ -29,10 +31,15 @@ export type EinkDevice = {
 };
 
 export interface EinkTransport {
-  readonly kind: "mock" | "manual";
+  readonly kind: "mock" | "manual" | "ble";
   discover(): Promise<EinkDevice[]>;
   connect(deviceId: string): Promise<void>;
+  getTelemetry?(deviceId: string): Promise<{
+    batteryPercent: number | null;
+    temperatureC: number | null;
+  }>;
   uploadImage(deviceId: string, image: Uint8Array): Promise<void>;
+  refresh?(deviceId: string): Promise<void>;
   disconnect(deviceId: string): Promise<void>;
 }
 
