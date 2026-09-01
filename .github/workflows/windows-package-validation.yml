@@ -50,9 +50,6 @@ jobs:
 
       - name: Build Windows installer
         shell: bash
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: pnpm tauri build --target x86_64-pc-windows-msvc
 
       - name: Prepare Windows installer
@@ -66,21 +63,12 @@ jobs:
             exit 1
           fi
 
-          signature="${setup}.sig"
-          if [[ ! -f "${signature}" ]]; then
-            echo "No Tauri NSIS installer signature was found: ${signature}"
-            exit 1
-          fi
-
           mkdir -p validation-assets
           cp "${setup}" validation-assets/codex-usage-desktop-windows-x64-setup.exe
-          cp "${signature}" validation-assets/codex-usage-desktop-windows-x64-setup.exe.sig
 
-      - name: Upload Windows installer and signature
+      - name: Upload Windows installer
         uses: actions/upload-artifact@v7
         with:
           name: codex-usage-desktop-windows-x64
-          path: |
-            validation-assets/codex-usage-desktop-windows-x64-setup.exe
-            validation-assets/codex-usage-desktop-windows-x64-setup.exe.sig
+          path: validation-assets/codex-usage-desktop-windows-x64-setup.exe
           if-no-files-found: error
