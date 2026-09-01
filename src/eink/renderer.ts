@@ -430,6 +430,18 @@ export async function snapshotToPngBlob(snapshot: EinkSnapshot): Promise<Blob> {
   });
 }
 
+export function snapshotToDataUrl(snapshot: EinkSnapshot): string {
+  const matrix = renderEinkMatrix(snapshot);
+  const quantized = createCanvasFromMatrix(matrix);
+  return quantized.toDataURL("image/png");
+}
+
+export async function snapshotToPngBytes(snapshot: EinkSnapshot): Promise<number[]> {
+  const blob = await snapshotToPngBlob(snapshot);
+  const buffer = await blob.arrayBuffer();
+  return Array.from(new Uint8Array(buffer));
+}
+
 function fillRect(
   matrix: EinkPixelMatrix,
   x: number,

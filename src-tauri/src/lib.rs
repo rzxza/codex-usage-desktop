@@ -292,6 +292,31 @@ async fn export_usage(
     .map_err(|error| error.to_string())?
 }
 
+#[tauri::command]
+async fn export_eink_png(bytes: Vec<u8>, target_path: Option<String>) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let file_path = if let Some(path) = target_path {
+            PathBuf::from(path)
+        } else {
+            let download_dir = dirs::download_dir()
+                .or_else(dirs::desktop_dir)
+                .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+            download_dir.join("codex-eink-400x300.png")
+        };
+
+        if let Some(parent) = file_path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+
+        std::fs::write(&file_path, bytes)
+            .map_err(|e| format!("Failed to write PNG file: {e}"))?;
+
+        Ok(file_path.to_string_lossy().to_string())
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
 fn parse_version(v: &str) -> Option<(u32, u32, u32)> {
     let clean = v.trim_start_matches("app-v").trim_start_matches('v');
     let parts: Vec<&str> = clean.split('.').collect();
@@ -826,6 +851,7 @@ pub fn run() {
             fetch_server_credit_analytics,
             reset_usage_state,
             export_usage,
+            export_eink_png,
             check_for_updates,
             restart_app,
             open_url,
