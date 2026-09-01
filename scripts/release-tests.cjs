@@ -209,3 +209,16 @@ test('blocks pnpm version before package.json changes', () => {
   assert.equal(fs.readFileSync(path.join(root, 'package.json'), 'utf8'), before);
   assert.equal(git(root, 'status', '--porcelain'), '');
 });
+
+test('tauri.conf.json security CSP allows self, data:, and blob: images without wildcards', () => {
+  const confPath = path.join(__dirname, '..', 'src-tauri', 'tauri.conf.json');
+  const conf = JSON.parse(fs.readFileSync(confPath, 'utf8'));
+  const csp = conf.app?.security?.csp;
+  assert.ok(csp, 'CSP must be configured and not null');
+  assert.equal(typeof csp, 'string');
+  assert.doesNotMatch(csp, /img-src\s+\*/, 'img-src must not be wildcard');
+  assert.doesNotMatch(csp, /default-src\s+\*/, 'default-src must not be wildcard');
+  assert.match(csp, /img-src[^;]*'self'/, "img-src must include 'self'");
+  assert.match(csp, /img-src[^;]*data:/, 'img-src must include data:');
+  assert.match(csp, /img-src[^;]*blob:/, 'img-src must include blob:');
+});

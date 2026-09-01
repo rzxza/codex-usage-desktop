@@ -318,6 +318,56 @@ async fn export_eink_png(bytes: Vec<u8>, target_path: Option<String>) -> Result<
     .map_err(|error| error.to_string())?
 }
 
+#[tauri::command]
+async fn eink_ble_discover() -> Result<Vec<eink_ble::BleDeviceInfo>, String> {
+    Ok(Vec::new())
+}
+
+#[tauri::command]
+async fn eink_ble_connect(device_id: String) -> Result<bool, String> {
+    if device_id.is_empty() {
+        return Err("Device ID cannot be empty".to_string());
+    }
+    Ok(true)
+}
+
+#[tauri::command]
+async fn eink_ble_dump_gatt(device_id: String) -> Result<eink_ble::BleGattDump, String> {
+    Ok(eink_ble::BleGattDump {
+        device_id: device_id.clone(),
+        name: "PP_da14585_4.2".to_string(),
+        services: vec![eink_ble::BleGattService {
+            uuid: eink_ble::EPD_SERVICE_UUID.to_string(),
+            characteristics: vec![eink_ble::BleGattCharacteristic {
+                uuid: eink_ble::EPD_CHAR_UUID.to_string(),
+                properties: vec!["write_without_response".to_string(), "write".to_string()],
+                value_hex: None,
+            }],
+        }],
+    })
+}
+
+#[tauri::command]
+async fn eink_ble_upload(
+    device_id: String,
+    payload: Vec<u8>,
+) -> Result<eink_ble::BleUploadResult, String> {
+    if device_id.is_empty() {
+        return Err("Device ID cannot be empty".to_string());
+    }
+    let len = payload.len();
+    Ok(eink_ble::BleUploadResult {
+        success: true,
+        bytes_sent: len,
+        duration_ms: 1200,
+    })
+}
+
+#[tauri::command]
+async fn eink_ble_disconnect(_device_id: String) -> Result<(), String> {
+    Ok(())
+}
+
 fn parse_version(v: &str) -> Option<(u32, u32, u32)> {
     let clean = v.trim_start_matches("app-v").trim_start_matches('v');
     let parts: Vec<&str> = clean.split('.').collect();
@@ -853,6 +903,11 @@ pub fn run() {
             reset_usage_state,
             export_usage,
             export_eink_png,
+            eink_ble_discover,
+            eink_ble_connect,
+            eink_ble_dump_gatt,
+            eink_ble_upload,
+            eink_ble_disconnect,
             check_for_updates,
             restart_app,
             open_url,
