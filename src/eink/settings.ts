@@ -13,7 +13,14 @@ export const DEFAULT_EINK_SETTINGS: EinkSettings = {
 
 const VALID_TRANSPORTS: Set<string> = new Set(["file", "manual", "seller", "mock"]);
 
-export function getTargetKey(transportKind: string, deviceId: string | null): string {
+export function getTargetKey(
+  transportKind: string,
+  deviceId: string | null,
+  customSinkPath?: string | null,
+): string {
+  if (transportKind === "file" && customSinkPath && customSinkPath.trim().length > 0) {
+    return `file:${customSinkPath.trim()}`;
+  }
   return `${transportKind}:${deviceId ?? "default"}`;
 }
 
@@ -46,12 +53,18 @@ export function sanitizeEinkSettings(raw: unknown): EinkSettings {
     deviceId = obj.deviceId.trim();
   }
 
+  let customSinkPath: string | null = null;
+  if (typeof obj.customSinkPath === "string" && obj.customSinkPath.trim().length > 0) {
+    customSinkPath = obj.customSinkPath.trim();
+  }
+
   return {
     enabled,
     autoPush,
     refreshIntervalMinutes,
     transportKind,
     deviceId,
+    customSinkPath,
   };
 }
 

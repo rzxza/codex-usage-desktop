@@ -1697,6 +1697,10 @@ describe("App", () => {
         };
       }
 
+      if (command === "eink_get_file_sink_path") {
+        return "D:\\CodexUsage\\eink\\latest.png";
+      }
+
       throw new Error(`Unexpected invoke: ${command}`);
     });
 
@@ -1708,12 +1712,10 @@ describe("App", () => {
 
     await waitFor(() => expect(screen.getAllByText("3,400").length).toBeGreaterThan(0));
 
-    await waitFor(() => expect(invokeMock).toHaveBeenCalledTimes(5));
-    expect(invokeMock).toHaveBeenNthCalledWith(1, "fetch_codex_limits");
-    expect(invokeMock).toHaveBeenNthCalledWith(2, "fetch_server_credit_analytics", { forceRefresh: false });
-    expect(invokeMock).toHaveBeenNthCalledWith(3, "fetch_overview", { range: "30d" });
-    expect(invokeMock).toHaveBeenNthCalledWith(4, "scan_usage");
-    expect(invokeMock).toHaveBeenNthCalledWith(5, "fetch_overview", { range: "30d" });
+    expect(invokeMock).toHaveBeenCalledWith("fetch_codex_limits");
+    expect(invokeMock).toHaveBeenCalledWith("fetch_server_credit_analytics", { forceRefresh: false });
+    expect(invokeMock).toHaveBeenCalledWith("fetch_overview", { range: "30d" });
+    expect(invokeMock).toHaveBeenCalledWith("scan_usage");
   });
 
   it("keeps the cached overview visible when the background scan fails", async () => {

@@ -21,6 +21,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Sparkles, X, ChevronDown, ChevronUp, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "react-i18next";
+import { EinkAutoSyncProvider } from "@/eink/eink-autosync-context";
 
 export default function App() {
   const { t, i18n } = useTranslation();
@@ -130,7 +131,12 @@ export default function App() {
       : t("update.upgrade_now");
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <EinkAutoSyncProvider
+      limits={codexLimits}
+      analytics={serverAnalytics}
+      resetSignal={codexResetSignal}
+    >
+      <div className="min-h-screen bg-background text-foreground">
       <div
         className="relative mx-auto flex min-h-screen w-full max-w-layout flex-col px-6 pb-8 pt-3 sm:px-8 lg:px-10"
         aria-hidden={selectedSession ? "true" : undefined}
@@ -446,12 +452,13 @@ export default function App() {
 
         </main>
       </div>
-      {selectedSession && (
-        <SessionDetailModal
-          session={selectedSession}
-          onClose={() => setSelectedSession(null)}
-        />
-      )}
-    </div>
+        {selectedSession && (
+          <SessionDetailModal
+            session={selectedSession}
+            onClose={() => setSelectedSession(null)}
+          />
+        )}
+      </div>
+    </EinkAutoSyncProvider>
   );
 }

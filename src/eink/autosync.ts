@@ -106,7 +106,11 @@ export function evaluateAutoSyncDecision(input: AutoSyncDecisionInput): AutoSync
     };
   }
 
-  const currentTargetKey = getTargetKey(settings.transportKind, settings.deviceId);
+  const currentTargetKey = getTargetKey(
+    settings.transportKind,
+    settings.deviceId,
+    settings.customSinkPath,
+  );
   const isTargetChanged = currentTargetKey !== state.lastSuccessTargetKey;
   const isContentChanged = pixelsHash !== state.lastSuccessHash;
   const isDifferentFromSuccess = isContentChanged || isTargetChanged;

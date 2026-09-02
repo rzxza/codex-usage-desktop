@@ -60,6 +60,7 @@ export type EinkSettings = {
   refreshIntervalMinutes: number;
   transportKind: EinkTransportKind;
   deviceId: string | null;
+  customSinkPath?: string | null;
 };
 
 export type EinkSyncBaseline = {

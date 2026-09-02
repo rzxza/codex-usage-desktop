@@ -9,10 +9,12 @@ import { renderEinkMatrix, snapshotToDataUrl, snapshotToPngBytes } from "./rende
 import {
   evaluateAutoSyncDecision,
   createInitialEinkSyncState,
+  handlePushOutcome,
 } from "./autosync";
 import type {
   EinkPushResult,
   EinkSettings,
+  EinkSnapshot,
   EinkSyncState,
 } from "./types";
 import {
@@ -37,7 +39,7 @@ export type UseEinkAutoSyncResult = {
   isPushing: boolean;
   fileSinkPath: string | null;
   updateSettings: (updater: (prev: EinkSettings) => EinkSettings) => void;
-  triggerManualPush: () => Promise<EinkPushResult | null>;
+  triggerManualPush: (force?: boolean) => Promise<EinkPushResult | null>;
   refreshPreview: () => void;
 };
 
@@ -61,22 +63,32 @@ export function useEinkAutoSync({
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
 
-  const transport = useMemo(() => getEinkTransport(settings.transportKind), [settings.transportKind]);
+  const transport = useMemo(
+    () => getEinkTransport(settings.transportKind),
+    [settings.transportKind],
+  );
 
   // Load default file sink path
   useEffect(() => {
     if (settings.transportKind === "file") {
       void import("@tauri-apps/api/core")
-        .then(({ invoke }) => invoke<string>("eink_get_file_sink_path"))
+        .then(({ invoke }) =>
+          invoke<string>("eink_get_file_sink_path", {
+            targetPath: settings.customSinkPath || settings.deviceId || null,
+          }),
+        )
         .then((path) => setFileSinkPath(path))
         .catch(() => setFileSinkPath(null));
     }
-  }, [settings.transportKind]);
+  }, [settings.transportKind, settings.customSinkPath, settings.deviceId]);
 
   const snapshot = useMemo(
     () => buildEinkSnapshot(limits, analytics, resetSignal),
     [limits, analytics, resetSignal],
   );
+
+  const snapshotRef = useRef<EinkSnapshot>(snapshot);
+  snapshotRef.current = snapshot;
 
   const { matrix, pixelsHash } = useMemo(() => {
     try {
@@ -88,6 +100,9 @@ export function useEinkAutoSync({
       return { matrix: null, pixelsHash: null };
     }
   }, [snapshot]);
+
+  const pixelsHashRef = useRef<string | null>(pixelsHash);
+  pixelsHashRef.current = pixelsHash;
 
   const previewUrl = useMemo(() => {
     void manualPreviewVersion;
@@ -110,6 +125,17 @@ export function useEinkAutoSync({
     });
   }, []);
 
+  const schedulePushTimer = useCallback((delayMs: number, action: () => void) => {
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    timerRef.current = window.setTimeout(() => {
+      timerRef.current = null;
+      action();
+    }, Math.max(0, delayMs));
+  }, []);
+
   const executePush = useCallback(
     async (isManual = false): Promise<EinkPushResult | null> => {
       if (inFlightRef.current) {
@@ -118,7 +144,8 @@ export function useEinkAutoSync({
 
       const activeSettings = settingsRef.current;
       const activeTransport = getEinkTransport(activeSettings.transportKind);
-      const targetDeviceId = activeSettings.deviceId || "default";
+      const targetDeviceId =
+        activeSettings.customSinkPath || activeSettings.deviceId || "default";
 
       if (!activeTransport.capabilities.supportsAutoPush && !isManual) {
         return null;
@@ -131,33 +158,40 @@ export function useEinkAutoSync({
       }));
 
       const pushPromise = (async () => {
+        const currentSnapshot = snapshotRef.current;
+        const currentHash = pixelsHashRef.current || "";
+        const targetKey = getTargetKey(
+          activeSettings.transportKind,
+          activeSettings.deviceId,
+          activeSettings.customSinkPath,
+        );
+
         try {
-          const imageBytes = await snapshotToPngBytes(snapshot);
-          const result = await activeTransport.uploadImage(targetDeviceId, new Uint8Array(imageBytes));
+          const imageBytes = await snapshotToPngBytes(currentSnapshot);
+          const result = await activeTransport.uploadImage(
+            targetDeviceId,
+            new Uint8Array(imageBytes),
+          );
 
           const now = Date.now();
-          const targetKey = getTargetKey(activeSettings.transportKind, activeSettings.deviceId);
+          const nextState = handlePushOutcome(
+            stateRef.current,
+            {
+              success: true,
+              hash: currentHash,
+              targetKey,
+              result,
+            },
+            now,
+          );
 
-          setState((prev: EinkSyncState) => {
-            const nextState: EinkSyncState = {
-              ...prev,
-              status: "success",
-              lastSuccessHash: pixelsHash,
-              lastSuccessAt: now,
-              lastSuccessTargetKey: targetKey,
-              lastError: null,
-              pendingHash: null,
-              pendingTargetKey: null,
-              nextPushAt: null,
-              consecutiveFailures: 0,
-            };
-            saveEinkSyncBaseline({
-              lastSuccessHash: pixelsHash || "",
-              lastSuccessAt: now,
-              lastSuccessTargetKey: targetKey,
-            });
-            return nextState;
+          saveEinkSyncBaseline({
+            lastSuccessHash: currentHash,
+            lastSuccessAt: now,
+            lastSuccessTargetKey: targetKey,
           });
+
+          setState(nextState);
 
           if (result.disposition === "written" && result.detail) {
             setFileSinkPath(result.detail);
@@ -166,15 +200,31 @@ export function useEinkAutoSync({
           return result;
         } catch (err) {
           const errMsg = err instanceof Error ? err.message : String(err);
-          setState((prev: EinkSyncState) => {
-            const nextFailures = prev.consecutiveFailures + 1;
-            return {
-              ...prev,
-              status: "error",
-              lastError: errMsg,
-              consecutiveFailures: nextFailures,
-            };
-          });
+          const now = Date.now();
+          const nextState = handlePushOutcome(
+            stateRef.current,
+            {
+              success: false,
+              hash: currentHash,
+              targetKey,
+              error: errMsg,
+            },
+            now,
+          );
+
+          setState(nextState);
+
+          // Schedule automatic retry if nextPushAt is configured
+          if (nextState.nextPushAt !== null) {
+            const delay = nextState.nextPushAt - now;
+            schedulePushTimer(delay, () => {
+              void executePush(false);
+            });
+          }
+
+          if (isManual) {
+            throw err;
+          }
           return null;
         } finally {
           inFlightRef.current = null;
@@ -184,20 +234,18 @@ export function useEinkAutoSync({
       inFlightRef.current = pushPromise;
       return pushPromise;
     },
-    [snapshot, pixelsHash],
+    [schedulePushTimer],
   );
 
-  const triggerManualPush = useCallback(async () => {
-    return executePush(true);
-  }, [executePush]);
+  const triggerManualPush = useCallback(
+    async (force = true) => {
+      return executePush(force);
+    },
+    [executePush],
+  );
 
   // Evaluate Decision on state / snapshot / settings change
   useEffect(() => {
-    if (timerRef.current !== null) {
-      window.clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-
     const now = Date.now();
     const decision = evaluateAutoSyncDecision({
       snapshot,
@@ -208,19 +256,23 @@ export function useEinkAutoSync({
       now,
     });
 
-    if (decision.nextState.status !== stateRef.current.status ||
-        decision.nextState.nextPushAt !== stateRef.current.nextPushAt ||
-        decision.nextState.pendingHash !== stateRef.current.pendingHash) {
+    if (
+      decision.nextState.status !== stateRef.current.status ||
+      decision.nextState.nextPushAt !== stateRef.current.nextPushAt ||
+      decision.nextState.pendingHash !== stateRef.current.pendingHash
+    ) {
       setState(decision.nextState);
     }
 
     if (decision.action === "push") {
       void executePush(false);
-    } else if (decision.action === "schedule_due" && decision.delayMs !== undefined) {
-      timerRef.current = window.setTimeout(() => {
-        timerRef.current = null;
+    } else if (
+      decision.action === "schedule_due" &&
+      decision.delayMs !== undefined
+    ) {
+      schedulePushTimer(decision.delayMs, () => {
         void executePush(false);
-      }, decision.delayMs);
+      });
     }
 
     return () => {
@@ -229,7 +281,7 @@ export function useEinkAutoSync({
         timerRef.current = null;
       }
     };
-  }, [snapshot, pixelsHash, settings, transport, executePush]);
+  }, [snapshot, pixelsHash, settings, transport, executePush, schedulePushTimer]);
 
   return {
     settings,

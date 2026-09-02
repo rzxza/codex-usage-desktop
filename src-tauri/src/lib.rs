@@ -317,36 +317,56 @@ async fn export_eink_png(bytes: Vec<u8>, target_path: Option<String>) -> Result<
     .map_err(|error| error.to_string())?
 }
 
-fn get_eink_dir() -> PathBuf {
+fn get_eink_sink_file(target_path: Option<&str>) -> PathBuf {
+    if let Some(path_str) = target_path {
+        let trimmed = path_str.trim();
+        if !trimmed.is_empty() {
+            let p = PathBuf::from(trimmed);
+            if p.is_dir() || p.extension().is_none() {
+                return p.join("latest.png");
+            }
+            return p;
+        }
+    }
+
     #[cfg(windows)]
     {
-        let d_path = PathBuf::from("D:\\CodexUsage\\eink");
+        let d_path = PathBuf::from("D:\\CodexUsage\\eink\\latest.png");
         if std::path::Path::new("D:\\").exists() {
             return d_path;
         }
     }
+
     dirs::data_dir()
         .or_else(dirs::config_dir)
         .unwrap_or_else(|| PathBuf::from("."))
-        .join("CodexUsage")
+        .join("com.codex.usage")
         .join("eink")
+        .join("latest.png")
 }
 
 #[tauri::command]
-async fn eink_get_file_sink_path() -> Result<String, String> {
-    let sink_path = get_eink_dir().join("latest.png");
+async fn eink_get_file_sink_path(target_path: Option<String>) -> Result<String, String> {
+    let sink_path = get_eink_sink_file(target_path.as_deref());
     Ok(sink_path.to_string_lossy().to_string())
 }
 
 #[tauri::command]
-async fn eink_write_latest_png(bytes: Vec<u8>) -> Result<String, String> {
+async fn eink_write_latest_png(
+    bytes: Vec<u8>,
+    target_path: Option<String>,
+) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let eink_dir = get_eink_dir();
-        std::fs::create_dir_all(&eink_dir)
-            .map_err(|e| format!("Failed to create eink directory: {e}"))?;
+        let final_path = get_eink_sink_file(target_path.as_deref());
+        if let Some(parent) = final_path.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| format!("Failed to create eink directory: {e}"))?;
+        }
 
-        let temp_path = eink_dir.join("latest.png.tmp");
-        let final_path = eink_dir.join("latest.png");
+        let temp_path = match final_path.parent() {
+            Some(parent) => parent.join("latest.png.tmp"),
+            None => PathBuf::from("latest.png.tmp"),
+        };
 
         std::fs::write(&temp_path, bytes)
             .map_err(|e| format!("Failed to write temporary PNG: {e}"))?;
@@ -1016,6 +1036,18 @@ mod tests {
         assert_eq!(std::fs::read(&final_path).unwrap(), b"test-2");
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_get_eink_sink_file_custom_and_default() {
+        let custom = get_eink_sink_file(Some("D:\\MyEink\\output.png"));
+        assert_eq!(custom, PathBuf::from("D:\\MyEink\\output.png"));
+
+        let custom_dir = get_eink_sink_file(Some("D:\\MyEinkDir"));
+        assert_eq!(custom_dir, PathBuf::from("D:\\MyEinkDir\\latest.png"));
+
+        let default_path = get_eink_sink_file(None);
+        assert!(default_path.to_string_lossy().ends_with("latest.png"));
     }
 
     #[test]

@@ -68,6 +68,7 @@ describe("E-Ink Settings & Persistence (P1)", () => {
       refreshIntervalMinutes: 30,
       transportKind: "manual" as const,
       deviceId: "test-device",
+      customSinkPath: null,
     };
     saveEinkSettings(custom);
     const loaded = loadEinkSettings();

@@ -32,6 +32,16 @@ describe("EinkTransport implementations", () => {
     expect(result.detail).toContain("latest.png");
   });
 
+  it("FileEinkTransport throws when native invoke fails (no silent success fallback)", async () => {
+    const { invoke } = await import("@tauri-apps/api/core");
+    vi.mocked(invoke).mockRejectedValueOnce(new Error("Native disk write permission denied"));
+
+    const transport = new FileEinkTransport();
+    await expect(transport.uploadImage("file-sink", new Uint8Array([1, 2, 3]))).rejects.toThrow(
+      "Native disk write permission denied",
+    );
+  });
+
   it("ManualExportTransport throws UnsupportedAutoPushError on uploadImage", async () => {
     const transport = new ManualExportTransport();
     expect(transport.kind).toBe("manual");

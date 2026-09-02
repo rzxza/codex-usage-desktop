@@ -77,8 +77,18 @@ function sampleAnalytics(): ServerCreditAnalyticsResponse {
 }
 
 describe("useEinkAutoSync", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     localStorage.clear();
+    const { invoke } = await import("@tauri-apps/api/core");
+    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+      if (cmd === "eink_write_latest_png") {
+        return "C:\\Users\\test\\AppData\\Roaming\\com.codex.usage\\eink\\latest.png";
+      }
+      if (cmd === "eink_get_file_sink_path") {
+        return "C:\\Users\\test\\AppData\\Roaming\\com.codex.usage\\eink\\latest.png";
+      }
+      throw new Error(`Unhandled invoke: ${cmd}`);
+    });
   });
 
   afterEach(() => {
@@ -164,5 +174,69 @@ describe("useEinkAutoSync", () => {
     expect(result.current.settings.enabled).toBe(true);
     expect(result.current.settings.refreshIntervalMinutes).toBe(30);
     expect(localStorage.getItem("eink.settings.v1")).toContain('"refreshIntervalMinutes":30');
+  });
+
+  it("handles push failure by entering retry_wait with backoff and preserving failure count", async () => {
+    const { invoke } = await import("@tauri-apps/api/core");
+    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+      if (cmd === "eink_write_latest_png") {
+        throw new Error("Disk IO Error");
+      }
+      return "C:\\path\\latest.png";
+    });
+
+    saveEinkSettings({
+      enabled: false,
+      autoPush: false,
+      refreshIntervalMinutes: 15,
+      transportKind: "file",
+      deviceId: null,
+    });
+
+    const limits = sampleLimits();
+    const analytics = sampleAnalytics();
+
+    const { result } = renderHook(() =>
+      useEinkAutoSync({ limits, analytics, resetSignal: null }),
+    );
+
+    await act(async () => {
+      try {
+        await result.current.triggerManualPush();
+      } catch {
+        // expected error
+      }
+    });
+
+    expect(result.current.state.status).toBe("retry_wait");
+    expect(result.current.state.consecutiveFailures).toBe(1);
+    expect(result.current.state.nextPushAt).not.toBeNull();
+    expect(result.current.state.lastError).toContain("Disk IO Error");
+  });
+
+  it("target key change pushes immediately even if content hash is identical to last success", async () => {
+    saveEinkSettings({
+      enabled: true,
+      autoPush: true,
+      refreshIntervalMinutes: 15,
+      transportKind: "file",
+      deviceId: "sink-1",
+    });
+    saveEinkSyncBaseline({
+      lastSuccessHash: "matching-hash",
+      lastSuccessAt: Date.now(),
+      lastSuccessTargetKey: "file:sink-0",
+    });
+
+    const limits = sampleLimits();
+    const analytics = sampleAnalytics();
+
+    const { result } = renderHook(() =>
+      useEinkAutoSync({ limits, analytics, resetSignal: null }),
+    );
+
+    await waitFor(() => {
+      expect(result.current.state.lastSuccessTargetKey).toBe("file:sink-1");
+    });
   });
 });

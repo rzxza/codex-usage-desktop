@@ -8,18 +8,18 @@ import type {
 } from "@/lib/api";
 import { buildEinkSnapshot } from "@/eink/snapshot";
 import { snapshotToDataUrl, snapshotToPngBytes } from "@/eink/renderer";
-import { useEinkAutoSync } from "@/eink/use-eink-autosync";
+import { useEinkAutoSyncContext } from "@/eink/eink-autosync-context";
 import { useTranslation } from "react-i18next";
 import { save } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 
 type EinkPanelProps = {
-  limits: CodexLimitsResponse | null;
-  analytics: ServerCreditAnalyticsResponse | null;
-  resetSignal: CodexResetSignalResponse | null;
+  limits?: CodexLimitsResponse | null;
+  analytics?: ServerCreditAnalyticsResponse | null;
+  resetSignal?: CodexResetSignalResponse | null;
 };
 
-export function EinkPanel({ limits, analytics, resetSignal }: EinkPanelProps) {
+export function EinkPanel({ limits = null, analytics = null, resetSignal = null }: EinkPanelProps) {
   const { t } = useTranslation();
   const {
     settings,
@@ -29,7 +29,7 @@ export function EinkPanel({ limits, analytics, resetSignal }: EinkPanelProps) {
     fileSinkPath,
     updateSettings,
     triggerManualPush,
-  } = useEinkAutoSync({ limits, analytics, resetSignal });
+  } = useEinkAutoSyncContext();
 
   const [status, setStatus] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);

@@ -64,16 +64,16 @@ export class FileEinkTransport implements EinkTransport {
   }
 
   async uploadImage(deviceId: string, image: Uint8Array): Promise<EinkPushResult> {
-    void deviceId;
-    try {
-      const { invoke } = await import("@tauri-apps/api/core");
-      const filePath = await invoke<string>("eink_write_latest_png", {
-        bytes: Array.from(image),
-      });
-      return { disposition: "written", detail: filePath };
-    } catch {
-      return { disposition: "written", detail: "com.codex.usage/eink/latest.png" };
-    }
+    const { invoke } = await import("@tauri-apps/api/core");
+    const targetPath =
+      deviceId && deviceId !== "default" && deviceId !== "file-sink"
+        ? deviceId
+        : null;
+    const filePath = await invoke<string>("eink_write_latest_png", {
+      bytes: Array.from(image),
+      targetPath,
+    });
+    return { disposition: "written", detail: filePath };
   }
 
   async disconnect(deviceId: string): Promise<void> {
